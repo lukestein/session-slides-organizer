@@ -1,4 +1,5 @@
 import { makePreview } from "./previews.mjs";
+import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -19,6 +20,9 @@ const zone = document.querySelector("#drop-zone");
 const error = document.querySelector("#error");
 const status = document.querySelector("#status");
 const exportButton = document.querySelector("#export");
+const archive = document.querySelector("#session-archive");
+const zipDetails = document.querySelector("#zip-details");
+const zipName = document.querySelector("#zip-name");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -38,6 +42,14 @@ function announce(message) {
   status.textContent = message;
 }
 
+function safeFilenameStem(stem) {
+  return stem.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/, "");
+}
+
+function archiveStem() {
+  return safeFilenameStem(zipName.value.trim().replace(/\.zip$/i, "").trim()) || zipName.defaultValue;
+}
+
 function downloadName(slide, index, width = 1) {
   const extension = slide.file.name.slice(-(slide.extension.length + 1));
   const title = slide.friendlyName;
@@ -47,18 +59,38 @@ function downloadName(slide, index, width = 1) {
       ? title.slice(0, -extension.length)
       : title;
   }
-  const safeStem = stem.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/, "");
   const position = String(index + 1).padStart(width, "0");
-  return `${position}. ${safeStem || "Slide"}${extension}`;
+  return `${position}. ${safeFilenameStem(stem) || "Slide"}${extension}`;
 }
 
 function updateDownload(slide, index) {
   slide.download.download = downloadName(slide, index);
 }
 
+function sessionFiles() {
+  const width = String(slides.length).length;
+  return slides.map((slide, index) => ({
+    file: slide.file,
+    name: downloadName(slide, index, width),
+  }));
+}
+
+function formatSize(bytes) {
+  return bytes < 100_000 ? "<0.1 MB" : `${megabytes.format(bytes / 1_000_000)} MB`;
+}
+
+function updateArchive() {
+  const count = slides.length;
+  archive.hidden = count === 0;
+  if (count) {
+    const size = formatSize(sessionZipSize(sessionFiles()));
+    zipDetails.textContent = `${count} ${count === 1 ? "file" : "files"} (${size})`;
+  }
+}
+
 function updateList() {
   list.hidden = slides.length === 0;
-  exportButton.hidden = slides.length === 0;
+  updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
     updateDownload(slide, index);
@@ -91,7 +123,7 @@ function announceMove(slide) {
 }
 
 function setMetadata(slide, count, unit) {
-  const size = slide.file.size < 100_000 ? "<0.1 MB" : `${megabytes.format(slide.file.size / 1_000_000)} MB`;
+  const size = formatSize(slide.file.size);
   const quantity = count ? `${count} ${unit}${count === 1 ? "" : "s"}, ` : "";
   slide.metadata.textContent = `(${quantity}${size})`;
 }
@@ -163,6 +195,7 @@ function makeRow(file, extension) {
     slide.friendlyName = title.value.trim() || defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
+    updateArchive();
   });
   title.addEventListener("blur", () => {
     title.value = slide.friendlyName;
@@ -177,10 +210,11 @@ function makeRow(file, extension) {
       title.blur();
     }
     if (tabbing) {
-      const next = slides[slides.indexOf(slide) + (event.shiftKey ? -1 : 1)];
+      const index = slides.indexOf(slide) + (event.shiftKey ? -1 : 1);
+      const next = index === slides.length ? zipName : slides[index]?.title;
       if (next) {
         event.preventDefault();
-        next.title.focus();
+        next.focus();
       }
     }
   });
@@ -327,21 +361,35 @@ picker.addEventListener("change", () => {
   picker.value = "";
 });
 
+zipName.addEventListener("focus", () => {
+  if (tabbing) zipName.select();
+});
+zipName.addEventListener("blur", () => {
+  zipName.value = archiveStem();
+  exportButton.setAttribute("aria-label", `Download ${zipName.value}.zip`);
+});
+zipName.addEventListener("keydown", event => {
+  if (event.isComposing) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    zipName.blur();
+  } else if (tabbing && event.shiftKey && slides.length) {
+    event.preventDefault();
+    slides.at(-1).title.focus();
+  }
+});
+
 exportButton.addEventListener("click", async () => {
-  const width = String(slides.length).length;
-  const files = slides.map((slide, index) => ({
-    file: slide.file,
-    name: downloadName(slide, index, width),
-  }));
+  const files = sessionFiles();
+  const filename = `${archiveStem()}.zip`;
   exportButton.disabled = true;
-  exportButton.textContent = "Preparing ZIP…";
+  announce("Preparing session ZIP.");
   error.hidden = true;
   try {
-    const { buildSessionZip } = await import("./session-zip.mjs");
     const url = URL.createObjectURL(await buildSessionZip(files));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "session-slides.zip";
+    link.download = filename;
     document.body.append(link);
     link.click();
     link.remove();
@@ -352,7 +400,6 @@ exportButton.addEventListener("click", async () => {
     error.hidden = false;
   } finally {
     exportButton.disabled = false;
-    exportButton.textContent = "Download session ZIP";
   }
 });
 

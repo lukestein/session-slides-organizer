@@ -35,8 +35,21 @@
       <input type="file" id="files" accept=".pdf,.ppt,.pptx,.pps,.ppsx,.pptm,.ppsm,.key" multiple hidden>
     </section>
 
+    <div class="zip-row" id="session-archive" hidden>
+      <div class="thumbnail zip-preview" aria-hidden="true"><span class="zip-icon">ZIP</span></div>
+      <div class="slide-name">
+        <div class="zip-name">
+          <input class="title" id="zip-name" type="text" value="session-slides" placeholder="session-slides"
+            aria-label="Session ZIP filename without extension" maxlength="180" autocomplete="off" spellcheck="false">
+          <span aria-hidden="true">.zip</span>
+        </div>
+        <p class="file-details" id="zip-details"></p>
+      </div>
+      <div class="actions">
+        <button type="button" class="button download" id="export" aria-label="Download session-slides.zip">Download</button>
+      </div>
+    </div>
     <p id="error" class="error" role="alert" hidden></p>
-    <button type="button" class="button" id="export" hidden>Download session ZIP</button>
 
     <p id="status" class="sr-only" role="status"></p>
   </main>

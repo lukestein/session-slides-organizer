@@ -1,16 +1,20 @@
-import { Zip, ZipPassThrough } from "./vendor/fflate/esm/browser.js";
+const encoder = new TextEncoder();
+
+export function sessionZipSize(files) {
+  // Stored ZIP entries have 92 bytes of overhead plus two copies of the name.
+  return files.reduce((total, { file, name }) => (
+    total + file.size + 92 + 2 * encoder.encode(name).length
+  ), 22);
+}
 
 export async function buildSessionZip(files) {
   const maxZipSize = 0xffffffff;
-  const encoder = new TextEncoder();
-  // Stored ZIP entries have 92 bytes of overhead plus two copies of the name.
-  const size = files.reduce((total, { file, name }) => (
-    total + file.size + 92 + 2 * encoder.encode(name).length
-  ), 22);
+  const size = sessionZipSize(files);
   if (size >= maxZipSize || files.length >= 0xffff) {
     throw new RangeError("The session exceeds the ZIP format limits.");
   }
 
+  const { Zip, ZipPassThrough } = await import("./vendor/fflate/esm/browser.js");
   const parts = [];
   const zip = new Zip((error, chunk) => {
     if (error) throw error;
