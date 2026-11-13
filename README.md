@@ -4,6 +4,7 @@ A browser-based organizer for conference sessions. Drop in PDFs, PowerPoint deck
 
 - **PDFs** can open in a new browser tab, fit to one page where the viewer supports it, or download for use in a native viewer.
 - **Downloads** use the current position, title, and original extension, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the download uses the original filename after the position.
+- **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order.
 - **Previews and file details** include the first page of a PDF or an embedded deck preview when available. All files show their size. PDFs and modern PowerPoint decks show their page or slide count when readable.
 - **Reordering** works by dragging a row. On a touch screen use the handle. With a keyboard, focus the handle and press the up or down arrow key.
 
@@ -48,7 +49,7 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 
 ## To do
 
-- [ ] Add one-click ZIP export with decks numbered and named in session order.
+- [x] Add one-click ZIP export with decks numbered and named in session order.
 - [ ] Explore QR code or short-link submissions from presenters’ devices. Assess connection setup and whether transfers work on venue Wi-Fi with minimal infrastructure.
 - [ ] Explore opening PowerPoint and Keynote decks in a browser tab. Check local rendering, fidelity, and whether available tools require uploading the deck.
 - [ ] Explore a PDF presentation view with one page at a time and a fullscreen control.

@@ -60,6 +60,8 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   background: #edf4eb;
 }
 .drop-zone.active { border-color: var(--accent); background: #deeddf; }
+#export { display: flex; margin: .8rem 0 0 auto; }
+#export:disabled { cursor: wait; opacity: .7; }
 #slides:not([hidden]) + .drop-zone { margin-top: .65rem; }
 .add-icon {
   display: grid;

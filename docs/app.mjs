@@ -18,6 +18,7 @@ const browse = document.querySelector("#browse");
 const zone = document.querySelector("#drop-zone");
 const error = document.querySelector("#error");
 const status = document.querySelector("#status");
+const exportButton = document.querySelector("#export");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -37,22 +38,27 @@ function announce(message) {
   status.textContent = message;
 }
 
-function updateDownload(slide, index) {
+function downloadName(slide, index, width = 1) {
   const extension = slide.file.name.slice(-(slide.extension.length + 1));
   const title = slide.friendlyName;
-  let name = slide.file.name;
+  let stem = slide.file.name.slice(0, -extension.length);
   if (title && title !== slide.defaultTitle) {
-    const stem = title.toLowerCase().endsWith(extension.toLowerCase())
+    stem = title.toLowerCase().endsWith(extension.toLowerCase())
       ? title.slice(0, -extension.length)
       : title;
-    const safeStem = stem.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/, "");
-    if (safeStem) name = safeStem + extension;
   }
-  slide.download.download = `${index + 1}. ${name}`;
+  const safeStem = stem.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/, "");
+  const position = String(index + 1).padStart(width, "0");
+  return `${position}. ${safeStem || "Slide"}${extension}`;
+}
+
+function updateDownload(slide, index) {
+  slide.download.download = downloadName(slide, index);
 }
 
 function updateList() {
   list.hidden = slides.length === 0;
+  exportButton.hidden = slides.length === 0;
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
     updateDownload(slide, index);
@@ -319,6 +325,35 @@ browse.addEventListener("click", () => picker.click());
 picker.addEventListener("change", () => {
   addFiles(picker.files);
   picker.value = "";
+});
+
+exportButton.addEventListener("click", async () => {
+  const width = String(slides.length).length;
+  const files = slides.map((slide, index) => ({
+    file: slide.file,
+    name: downloadName(slide, index, width),
+  }));
+  exportButton.disabled = true;
+  exportButton.textContent = "Preparing ZIP…";
+  error.hidden = true;
+  try {
+    const { buildSessionZip } = await import("./session-zip.mjs");
+    const url = URL.createObjectURL(await buildSessionZip(files));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "session-slides.zip";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    announce("Session ZIP ready.");
+  } catch {
+    error.textContent = "Couldn’t create the session ZIP. Try again or download the slides individually.";
+    error.hidden = false;
+  } finally {
+    exportButton.disabled = false;
+    exportButton.textContent = "Download session ZIP";
+  }
 });
 
 window.addEventListener("pageshow", event => {
