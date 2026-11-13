@@ -2,7 +2,7 @@ const pdfAssets = new URL("./vendor/pdfjs/", import.meta.url);
 const embeddedPreview = /^(?:docProps\/thumbnail|preview(?:-web)?)[.](?:jpe?g|png|webp)$/i;
 let pdfLibrary;
 
-async function pdfPreview(fileUrl) {
+async function pdfPreview(fileUrl, reportCount) {
   pdfLibrary ??= import("./vendor/pdfjs/legacy/build/pdf.min.mjs");
   const { getDocument, GlobalWorkerOptions } = await pdfLibrary;
   GlobalWorkerOptions.workerSrc = new URL("legacy/build/pdf.worker.min.mjs", pdfAssets).href;
@@ -17,6 +17,7 @@ async function pdfPreview(fileUrl) {
   });
   try {
     const pdf = await task.promise;
+    reportCount(pdf.numPages, "page");
     const page = await pdf.getPage(1);
     const original = page.getViewport({ scale: 1 });
     const scale = Math.min(300 / original.width, 190 / original.height);
@@ -31,21 +32,46 @@ async function pdfPreview(fileUrl) {
   }
 }
 
-async function packagePreview(file) {
+async function packagePreview(file, extension, reportCount) {
   const { unzipSync } = await import("./vendor/fflate/esm/browser.js");
+  const presentationPath = "ppt/presentation.xml";
+  const maxEntrySize = 4 * 1024 * 1024;
+  const selected = new Set();
   const entries = unzipSync(new Uint8Array(await file.arrayBuffer()), {
-    filter: ({ name, originalSize }) => originalSize <= 4 * 1024 * 1024 && embeddedPreview.test(name),
+    filter: ({ name, size, originalSize }) => {
+      if (size > maxEntrySize || originalSize > maxEntrySize) return false;
+      const normalized = name.toLowerCase();
+      if (selected.has(normalized)) return false;
+      if (!embeddedPreview.test(name) && (extension === "key" || name !== presentationPath)) return false;
+      selected.add(normalized);
+      return true;
+    },
   });
-  const entry = Object.keys(entries).find(name => /^docProps\/thumbnail[.]|^preview[.]/i.test(name))
-    ?? Object.keys(entries)[0];
+  if (entries[presentationPath]) {
+    const xml = new TextDecoder().decode(entries[presentationPath]);
+    const { documentElement } = new DOMParser().parseFromString(xml, "application/xml");
+    const slideList = Array.from(documentElement.children).find(child => (
+      child.localName === "sldIdLst" && child.namespaceURI === documentElement.namespaceURI
+    ));
+    if (slideList) {
+      const slides = Array.from(slideList.children).filter(child => (
+        child.localName === "sldId" && child.namespaceURI === slideList.namespaceURI
+      ));
+      reportCount(slides.length, "slide");
+    }
+  }
+  const images = Object.keys(entries).filter(name => embeddedPreview.test(name));
+  const entry = images.find(name => /^docProps\/thumbnail[.]|^preview[.]/i.test(name)) ?? images[0];
   if (!entry) return null;
-  const extension = entry.split(".").at(-1).toLowerCase();
-  const format = extension === "jpg" ? "jpeg" : extension;
+  const imageExtension = entry.split(".").at(-1).toLowerCase();
+  const format = imageExtension === "jpg" ? "jpeg" : imageExtension;
   return new Blob([entries[entry]], { type: `image/${format}` });
 }
 
-export function makePreview(file, fileUrl, extension) {
-  if (extension === "pdf") return pdfPreview(fileUrl);
-  if (["pptx", "pptm", "ppsx", "ppsm", "key"].includes(extension)) return packagePreview(file);
+export function makePreview(file, fileUrl, extension, reportCount) {
+  if (extension === "pdf") return pdfPreview(fileUrl, reportCount);
+  if (["pptx", "pptm", "ppsx", "ppsm", "key"].includes(extension)) {
+    return packagePreview(file, extension, reportCount);
+  }
   return null;
 }
