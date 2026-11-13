@@ -50,7 +50,7 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 ## To do
 
 - [x] Add one-click ZIP export with decks numbered and named in session order.
-- [ ] Explore QR code or short-link submissions from presenters’ devices. Assess connection setup and whether transfers work on venue Wi-Fi with minimal infrastructure.
+- [ ] Test the PairDrop handoff on the classroom computer. **Receive with PairDrop** creates a temporary room in a separate tab. Set the classroom browser’s display name in PairDrop to **Presentation Computer** so presenters know which device to select. PairDrop saves the name in that browser profile. Have presenters join with the QR code or room code and send one deck at a time. Accept it in PairDrop, then return to the organizer and click **Import received files** or drop the downloaded deck into the list. The picker starts in Downloads where supported.
 - [ ] Explore opening PowerPoint and Keynote decks in a browser tab. Check local rendering, fidelity, and whether available tools require uploading the deck.
 - [ ] Explore a PDF presentation view with one page at a time and a fullscreen control.
 

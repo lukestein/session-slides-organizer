@@ -16,6 +16,7 @@ const list = document.querySelector("#slides");
 const template = document.querySelector("#slide-row");
 const picker = document.querySelector("#files");
 const browse = document.querySelector("#browse");
+const importDownloads = document.querySelector("#import-downloads");
 const zone = document.querySelector("#drop-zone");
 const error = document.querySelector("#error");
 const status = document.querySelector("#status");
@@ -356,6 +357,30 @@ window.addEventListener("drop", event => {
 });
 
 browse.addEventListener("click", () => picker.click());
+importDownloads.addEventListener("click", async () => {
+  if (typeof window.showOpenFilePicker !== "function") {
+    picker.click();
+    return;
+  }
+
+  try {
+    const handles = await window.showOpenFilePicker({
+      startIn: "downloads",
+      multiple: true,
+      types: [{
+        description: "Presentation files",
+        accept: {
+          "application/pdf": [".pdf"],
+          "application/octet-stream": Object.keys(formats).filter(extension => extension !== "pdf")
+            .map(extension => `.${extension}`),
+        },
+      }],
+    });
+    addFiles(await Promise.all(handles.map(handle => handle.getFile())));
+  } catch (error) {
+    if (error.name !== "AbortError") picker.click();
+  }
+});
 picker.addEventListener("change", () => {
   addFiles(picker.files);
   picker.value = "";

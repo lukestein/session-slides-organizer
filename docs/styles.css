@@ -102,6 +102,28 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 }
 .add-icon:hover { border-color: var(--accent); background: #deeddf; }
 .drop-copy { min-width: 0; padding-inline: .45rem; }
+.receive-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: end;
+  gap: .0625rem;
+  margin: 0 -.25rem -.25rem 0;
+  text-align: right;
+  grid-column: 4 / -1;
+}
+.receive-actions :is(a, button) {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: .6875rem;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+}
+.receive-actions :is(a, button):is(:hover, :focus-visible) { color: var(--accent); }
 .drop-copy h2 { font-size: 1.1rem; letter-spacing: -.025em; }
 .drop-copy p { margin-top: .25rem; color: var(--muted); font-size: .9rem; }
 
@@ -238,6 +260,7 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   .slide, .drop-zone, .zip-row { grid-template-columns: var(--order-width) var(--preview-width) minmax(0, 1fr) var(--trash-width); }
   .order { grid-row: 1 / 3; padding-inline: .4rem; }
   .slide-name, .drop-copy { grid-column: 3 / -1; }
+  .receive-actions { grid-column: 2 / -1; grid-row: 2; }
   .actions { grid-column: 2 / 4; grid-row: 2; width: min(100%, var(--action-width)); justify-self: end; }
   .remove { grid-column: 4; grid-row: 2; }
 }
