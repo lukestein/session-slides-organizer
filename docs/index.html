@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Arrange conference slides and open each talk from one list.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Session Slides</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="shell masthead-inner">
+      <span class="wordmark-icon" aria-hidden="true">▤</span>
+      <span class="wordmark">Session Slides</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="intro">
+      <h1>Presentation order</h1>
+      <p>Arrange your decks and open each one when it’s time to present.</p>
+    </div>
+
+    <section class="drop-zone" id="drop-zone" aria-label="Add presentations">
+      <span class="add-icon" aria-hidden="true">+</span>
+      <div class="drop-copy">
+        <h2>Drop slides here</h2>
+        <p>PDF, PowerPoint, or Keynote</p>
+      </div>
+      <button type="button" class="button primary" id="browse">Choose files</button>
+      <input type="file" id="files" accept=".pdf,.ppt,.pptx,.pps,.ppsx,.pptm,.ppsm,.key" multiple hidden>
+    </section>
+
+    <p id="error" class="error" role="alert" hidden></p>
+
+    <section id="lineup" class="lineup" aria-labelledby="lineup-heading" hidden>
+      <div class="lineup-header">
+        <h2 id="lineup-heading">Your slides</h2>
+        <span id="count"></span>
+      </div>
+      <ol id="slides"></ol>
+    </section>
+
+    <p class="local-note">Files stay on this computer. Keep this tab open to keep your list.</p>
+    <p id="status" class="sr-only" role="status"></p>
+  </main>
+
+  <template id="slide-row">
+    <li class="slide">
+      <div class="order">
+        <span class="grip" draggable="true" aria-hidden="true">⠿</span>
+        <span class="position" aria-hidden="true"></span>
+      </div>
+      <div class="thumbnail" aria-hidden="true"><span></span><img alt="" hidden></div>
+      <div class="slide-name">
+        <input class="title" type="text" maxlength="180" autocomplete="off" spellcheck="false">
+        <span class="filename"></span>
+      </div>
+      <div class="actions">
+        <a class="button primary open-pdf" target="_blank" rel="noopener">Open PDF</a>
+        <a class="button download" download>Download</a>
+      </div>
+      <div class="row-tools">
+        <button type="button" class="icon-button up" title="Move up">↑</button>
+        <button type="button" class="icon-button down" title="Move down">↓</button>
+        <button type="button" class="icon-button remove" title="Remove file">×</button>
+      </div>
+    </li>
+  </template>
+</body>
+</html>
