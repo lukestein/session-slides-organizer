@@ -41,7 +41,7 @@ main {
   --download-width: 6.25rem;
   padding-top: 1.35rem;
 }
-.drop-zone, .slide {
+.drop-zone, .slide, .zip-row {
   display: grid;
   grid-template-columns: var(--order-width) var(--preview-width) minmax(0, 1fr) var(--action-width) var(--trash-width);
   align-items: center;
@@ -60,6 +60,33 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   background: #edf4eb;
 }
 .drop-zone.active { border-color: var(--accent); background: #deeddf; }
+#export:disabled { cursor: wait; opacity: .7; }
+.zip-row { margin-top: 1rem; border: 1px solid transparent; border-top: 3px solid var(--accent); border-radius: 0; }
+.zip-preview { grid-column: 2; }
+.zip-icon {
+  display: grid;
+  place-items: end center;
+  width: 1.9rem;
+  height: 2.25rem;
+  padding-bottom: .2rem;
+  border: 1px solid currentColor;
+  border-radius: .22rem;
+  background: repeating-linear-gradient(var(--accent) 0 2px, transparent 2px 4px) center top / 3px .85rem no-repeat, var(--paper);
+  font-size: .58rem;
+}
+.zip-name { position: relative; }
+.zip-name .title { padding-right: 3rem; }
+.zip-name span {
+  position: absolute;
+  inset: 1px 1px 1px auto;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .85rem;
+  pointer-events: none;
+}
 #slides:not([hidden]) + .drop-zone { margin-top: .65rem; }
 .add-icon {
   display: grid;
@@ -208,7 +235,7 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 
 @media (max-width: 780px) {
   main { --order-width: 3.35rem; --preview-width: 4.65rem; --row-gap: .55rem; }
-  .slide, .drop-zone { grid-template-columns: var(--order-width) var(--preview-width) minmax(0, 1fr) var(--trash-width); }
+  .slide, .drop-zone, .zip-row { grid-template-columns: var(--order-width) var(--preview-width) minmax(0, 1fr) var(--trash-width); }
   .order { grid-row: 1 / 3; padding-inline: .4rem; }
   .slide-name, .drop-copy { grid-column: 3 / -1; }
   .actions { grid-column: 2 / 4; grid-row: 2; width: min(100%, var(--action-width)); justify-self: end; }
