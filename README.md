@@ -51,9 +51,9 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 
 - [x] Add one-click ZIP export with decks numbered and named in session order.
 - [ ] Test the PairDrop handoff on the classroom computer. **Receive with PairDrop** creates a temporary room in a separate tab. Set the classroom browser’s display name in PairDrop to **Presentation Computer** so presenters know which device to select. PairDrop saves the name in that browser profile. Have presenters join with the QR code or room code and send one deck at a time. Accept it in PairDrop, then return to the organizer and click **Import received files** or drop the downloaded deck into the list. The picker starts in Downloads where supported.
-- [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting decks in the browser** below. PowerPoint works locally; Keynote does not.
-- [ ] Decide whether to keep the in-browser deck presenter, given the bundle size, the relaxed style CSP, and the age of the renderer.
-- [ ] Explore a PDF presentation view with one page at a time and a fullscreen control.
+- [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting in the browser** below. PowerPoint works locally; Keynote does not.
+- [ ] Decide whether to keep the in-browser presenter, given the bundle size, the CSP exceptions, and the age of the deck renderer. The PDF side rests on PDF.js, which the site already bundled.
+- [x] Explore a PDF presentation view with one page at a time and a fullscreen control. PDFs now use the same presenter as decks, with their links intact.
 
 ## Presenting in the browser
 
