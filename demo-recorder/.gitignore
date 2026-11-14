@@ -1,0 +1,9 @@
+# Allow-list, not a block-list. The demo runs on Luke's real decks and the
+# captured frames are pictures of them, so nothing here is committed unless it is
+# named below -- a new output directory cannot sneak into a commit.
+*
+!.gitignore
+!README.md
+!sync.sh
+!*.mjs
+!*.js
