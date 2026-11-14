@@ -57,10 +57,14 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 
 ## Presenting decks in the browser
 
-**Open in browser** now appears on PowerPoint rows as well as PDFs. It opens the deck in a
-presenter overlay in the same tab: arrow keys, space, Page Up/Down, Home/End to move, Esc to
-close, and a full-screen button. Parsing and rendering happen on this computer and the deck is
-never uploaded.
+**Open in browser\*** now appears on PowerPoint rows as well as PDFs, and opens the deck in a new
+tab, as a PDF does — so the deck can go to the projector while the list stays on the laptop.
+Arrow keys, space, Page Up/Down and Home/End move between slides, and there is a full-screen
+button. Parsing and rendering happen on this computer and the deck is never uploaded.
+
+The deck reaches `docs/present.html` as a blob URL in the query string, the same handoff the PDF
+rows already use. That page reads the file into memory before rendering, so closing the organizer
+tab or removing the row cannot interrupt a talk in progress.
 
 Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored under
 `docs/vendor/webppt/`. Its only runtime dependency is fflate, which the site already bundles.
@@ -101,8 +105,8 @@ PowerPoint exactly", because the differences are easier to show than to enumerat
   Dependabot will not warn about them.
 - Full screen through the browser's Fullscreen API is **untested on a real browser** — it was
   refused by the embedded browser used during development. The button falls back to naming the
-  browser's own full-screen shortcut, and the overlay already covers the window. Confirm this on
-  the classroom computer.
+  browser's own full-screen shortcut, and the presenter page already fills its tab, so the
+  browser's own full screen works either way. Confirm this on the classroom computer.
 
 ### Update the bundled renderer
 

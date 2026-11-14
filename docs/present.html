@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Present a PowerPoint deck from the Session Slides Organizer.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Presenting</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./present.mjs"></script>
+</head>
+<body class="deck-body">
+  <div class="deck-page">
+    <div class="deck-bar">
+      <span class="deck-title" id="deck-title"></span>
+      <span class="deck-count" id="deck-count" role="status"></span>
+      <button type="button" class="deck-button" id="deck-fullscreen">Full screen</button>
+    </div>
+    <div class="deck-stage" id="deck-stage">
+      <p class="deck-message">Opening deck…</p>
+    </div>
+    <button type="button" class="deck-edge deck-prev" id="deck-prev" aria-label="Previous slide"></button>
+    <button type="button" class="deck-edge deck-next" id="deck-next" aria-label="Next slide"></button>
+  </div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
-import { canPresent, openDeck } from "./deck-viewer.mjs";
+import { canPresent, presentUrl } from "./deck-viewer.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -197,15 +197,10 @@ function makeRow(file, extension) {
     openPdf.append(Object.assign(document.createElement("b"), {
       textContent: "*", ariaHidden: "true",
     }));
-    // Decks render in this tab; a blob URL would only download them again.
-    openPdf.href = "#";
-    openPdf.removeAttribute("target");
+    // A blob URL would only download the deck, so hand it to the presenter page.
+    openPdf.href = presentUrl(url, defaultTitle);
     openPdf.setAttribute("aria-label",
       `Open in browser: ${file.name}. May not match PowerPoint exactly.`);
-    openPdf.addEventListener("click", event => {
-      event.preventDefault();
-      openDeck(slide.file, slide.friendlyName);
-    });
   }
   download.href = url;
   download.draggable = false;
@@ -214,6 +209,7 @@ function makeRow(file, extension) {
     slide.friendlyName = title.value.trim() || defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
+    if (presentable) openPdf.href = presentUrl(url, slide.friendlyName);
     updateArchive();
   });
   title.addEventListener("blur", () => {

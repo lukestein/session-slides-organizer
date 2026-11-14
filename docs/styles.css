@@ -276,24 +276,25 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   .file-details { flex-wrap: wrap; row-gap: .1rem; }
 }
 
-/* Deck presenter overlay */
-body.presenting { overflow: hidden; }
-
-.deck-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  grid-template-rows: auto 1fr;
+/* Presenter page (present.html) */
+.deck-body {
+  margin: 0;
   background: #101014;
   color: #f2f2f4;
 }
 
+.deck-page {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100dvh;
+}
+
 .deck-bar {
   display: flex;
-  gap: 0.75rem;
+  gap: .75rem;
   align-items: center;
-  padding: 0.5rem 0.9rem;
+  padding: .5rem .9rem;
   background: #1b1b21;
   border-bottom: 1px solid #2c2c34;
 }
@@ -316,8 +317,8 @@ body.presenting { overflow: hidden; }
   color: inherit;
   background: #2c2c34;
   border: 1px solid #3c3c46;
-  border-radius: 0.4rem;
-  padding: 0.3rem 0.7rem;
+  border-radius: .4rem;
+  padding: .3rem .7rem;
   cursor: pointer;
 }
 
@@ -327,7 +328,7 @@ body.presenting { overflow: hidden; }
   display: grid;
   place-items: center;
   overflow: hidden;
-  padding: 0.5rem;
+  padding: .5rem;
 }
 
 .deck-stage > * { max-width: 100%; max-height: 100%; }
@@ -339,6 +340,7 @@ body.presenting { overflow: hidden; }
   max-width: 32rem;
 }
 
+/* Click targets along each edge, invisible until focused. */
 .deck-edge {
   position: absolute;
   top: 3rem;
@@ -352,4 +354,17 @@ body.presenting { overflow: hidden; }
 
 .deck-prev { left: 0; }
 .deck-next { right: 0; }
-.deck-edge:focus-visible { opacity: 1; background: rgba(255, 255, 255, 0.12); }
+.deck-edge:focus-visible { opacity: 1; background: rgba(255, 255, 255, .12); }
+
+/* In full screen the bar hides until the pointer reaches the top. */
+:fullscreen .deck-page { grid-template-rows: 1fr; }
+:fullscreen .deck-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity .15s;
+}
+:fullscreen .deck-bar:hover,
+:fullscreen .deck-bar:focus-within { opacity: 1; }
+:fullscreen .deck-edge { top: 0; }
