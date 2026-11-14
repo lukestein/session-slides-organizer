@@ -59,8 +59,25 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 
 **Open in browser\*** now appears on PowerPoint rows as well as PDFs, and opens the deck in a new
 tab, as a PDF does — so the deck can go to the projector while the list stays on the laptop.
-Arrow keys, space, Page Up/Down and Home/End move between slides, and there is a full-screen
-button. Parsing and rendering happen on this computer and the deck is never uploaded.
+Parsing and rendering happen on this computer and the deck is never uploaded.
+
+### Presenter controls
+
+| Key | Does |
+| --- | --- |
+| → ↓ Space Page Down | Next slide, or the next click-by-click build |
+| ← ↑ Page Up | Previous |
+| Home / End | First / last slide |
+| **B** / **W** | Blank the screen black or white, as in PowerPoint. Press again, or move, to resume |
+| **G** | Show all slides as thumbnails along the bottom; click one to jump, Esc to close |
+
+Both the arrow pairs and the Page keys move, which covers the usual presentation clickers. The
+**Slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own
+full screen; in full screen the bar hides until the pointer reaches the top.
+
+Thumbnails render only as they scroll into view, so a long deck does not pay for every slide when
+the picker opens. All of this lives in `docs/present.mjs` and calls only the renderer's public
+API, so the vendored copy stays untouched and upstream updates drop straight in.
 
 The deck reaches `docs/present.html` as a blob URL in the query string, the same handoff the PDF
 rows already use. That page reads the file into memory before rendering, so closing the organizer

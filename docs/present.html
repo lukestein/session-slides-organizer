@@ -15,6 +15,8 @@
     <div class="deck-bar">
       <span class="deck-title" id="deck-title"></span>
       <span class="deck-count" id="deck-count" role="status"></span>
+      <button type="button" class="deck-button" id="deck-slides"
+        title="Show all slides (G). B blanks the screen black, W white.">Slides</button>
       <button type="button" class="deck-button" id="deck-fullscreen">Full screen</button>
     </div>
     <div class="deck-stage" id="deck-stage">
@@ -22,6 +24,8 @@
     </div>
     <button type="button" class="deck-edge deck-prev" id="deck-prev" aria-label="Previous slide"></button>
     <button type="button" class="deck-edge deck-next" id="deck-next" aria-label="Next slide"></button>
+    <div class="deck-blank" id="deck-blank" hidden></div>
+    <div class="deck-picker" id="deck-picker" aria-label="Slides" hidden></div>
   </div>
 </body>
 </html>

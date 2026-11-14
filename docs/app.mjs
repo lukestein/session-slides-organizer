@@ -25,6 +25,7 @@ const exportButton = document.querySelector("#export");
 const archive = document.querySelector("#session-archive");
 const zipDetails = document.querySelector("#zip-details");
 const zipName = document.querySelector("#zip-name");
+const deckCaveat = document.querySelector("#deck-caveat");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -92,6 +93,7 @@ function updateArchive() {
 
 function updateList() {
   list.hidden = slides.length === 0;
+  deckCaveat.hidden = !slides.some(slide => slide.presentable);
   updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
@@ -173,7 +175,7 @@ function makeRow(file, extension) {
   const url = URL.createObjectURL(source);
   const defaultTitle = (file.name.slice(0, -(extension.length + 1)).trim() || file.name).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
-  const slide = { row, file, title, url, position, download, extension, defaultTitle, metadata, friendlyName: defaultTitle };
+  const slide = { row, file, title, url, position, download, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
@@ -188,7 +190,7 @@ function makeRow(file, extension) {
   openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
   download.setAttribute("aria-label", `Download ${file.name}`);
 
-  const presentable = canPresent(extension);
+  const { presentable } = slide;
   openPdf.hidden = !isPdf && !presentable;
   if (isPdf) {
     openPdf.href = `${url}#view=Fit`;
