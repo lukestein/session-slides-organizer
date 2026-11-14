@@ -133,6 +133,21 @@ function step(move) {
 
 document.querySelector("#deck-prev").addEventListener("click", step(() => deck?.prev()));
 document.querySelector("#deck-next").addEventListener("click", step(() => deck?.next()));
+
+// Clicking near the left or right edge moves a slide. The strips that mark
+// those zones are not hit-testable, so a link sitting at the edge of a page
+// still takes its own click; what is left over is placed by where it landed.
+const edgeShare = 0.12;
+document.addEventListener("click", event => {
+  if (!deck) return;
+  // Links, controls and the page furniture keep their own clicks.
+  if (event.target.closest("a, button, input, .deck-bar, .deck-picker, .deck-help, .deck-blank")) {
+    return;
+  }
+  const edge = window.innerWidth * edgeShare;
+  if (event.clientX <= edge) step(() => deck.prev())();
+  else if (event.clientX >= window.innerWidth - edge) step(() => deck.next())();
+});
 blank.addEventListener("click", resume);
 help.addEventListener("click", () => showHelp(false));
 

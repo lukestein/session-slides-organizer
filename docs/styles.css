@@ -360,6 +360,10 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   background: transparent;
   cursor: pointer;
   opacity: 0;
+  /* Drawn over the slide, so they must not take its clicks: a link at the edge
+     of a page would never be reachable. present.mjs places edge clicks by
+     coordinate instead. Keyboard focus is unaffected. */
+  pointer-events: none;
 }
 
 .deck-prev { left: 0; }

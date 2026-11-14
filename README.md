@@ -81,8 +81,10 @@ would, and, for a PDF, **Open original**, which opens it in the browser's own vi
 For a PDF the arrows move a page at a time; for a deck they play the next click-by-click build
 before moving on, as PowerPoint does.
 
-Coming back from a blank screen returns to the slide that was up rather than moving on from it,
-so a key pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
+Clicking the outer eighth of either side moves a slide as well, except where a link sits there:
+a link takes its own click, so one at the very edge of a page is still reachable. Coming back
+from a blank screen returns to the slide that was up rather than moving on from it, so a key
+pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
 slide also lifts the picker into view, and it withdraws when the pointer leaves; opening it with
 **G** or the **Slides** button keeps it up until it is closed.
 
