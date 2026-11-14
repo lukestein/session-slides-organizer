@@ -118,6 +118,16 @@ tab or removing the row cannot interrupt a talk in progress.
 Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored under
 `docs/vendor/webppt/`. Its only runtime dependency is fflate, which the site already bundles.
 
+PDF pages render into an off-screen buffer and are copied onto the visible canvas in one step once
+the page is complete. Painting straight to the visible canvas blanks the slide on every page turn:
+assigning to a canvas's width clears it outright, and PDF.js then floods the page white of its own
+accord before any content lands. Measured in the page on the 23-page test deck, that cost one blank
+run per turn of one to four frames — brief, but a white flash in a dark room. The approach is
+[Stoatworks Labs' PDF Presenter](https://github.com/stoatworks-labs/pdf-presenter)'s (MIT), which
+hit the same flash in its issue #28; its `src/renderer/src/pdf.ts` is worth re-reading if page
+turns ever need more work than this. PowerPoint needs none of it — web-ppt already builds each
+slide detached and swaps it in, which is also how it does transitions.
+
 ### What works
 
 - PDFs, through the copy of PDF.js the site already bundles for thumbnails, so presenting them
