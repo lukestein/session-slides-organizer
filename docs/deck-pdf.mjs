@@ -59,6 +59,10 @@ export async function openPdf(stage, data, onPageChange) {
   const holder = document.createElement("div");
   holder.className = "pdf-page";
   const canvas = document.createElement("canvas");
+  const paper = canvas.getContext("2d");
+  // Pages are painted into this and copied across, never drawn on screen
+  // directly. See paint() for why.
+  const buffer = document.createElement("canvas");
   const links = document.createElement("div");
   // annotationLayer is the class PDF.js's own rules key off; the subset this
   // site needs for links is in styles.css.
@@ -92,20 +96,39 @@ export async function openPdf(stage, data, onPageChange) {
     const viewport = page.getViewport({ scale });
     const ratio = window.devicePixelRatio || 1;
 
+    // Draw into the buffer, not onto the screen. Assigning to a canvas's width
+    // clears it outright, and PDF.js then paints asynchronously, flooding the
+    // page with white before any content lands -- so rendering straight to the
+    // visible canvas blanks the slide on every page turn, for as long as the
+    // page takes to draw. Measured on a 23-page deck that is a median of 13ms
+    // and up to 69ms: short, but a white flash on a projector all the same.
+    //
+    // Stoatworks Labs' PDF Presenter (MIT) hit this and fixed it the same way;
+    // the approach is theirs. See src/renderer/src/pdf.ts and issue #28 in
+    // https://github.com/stoatworks-labs/pdf-presenter -- worth re-reading if
+    // page turns ever need more work than this.
     task?.cancel();
-    canvas.width = Math.ceil(viewport.width * ratio);
-    canvas.height = Math.ceil(viewport.height * ratio);
+    buffer.width = Math.ceil(viewport.width * ratio);
+    buffer.height = Math.ceil(viewport.height * ratio);
+
+    task = page.render({ canvas: buffer, viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
+    try {
+      await task.promise;
+    } catch {
+      // Cancelled by a newer page or a resize. The slide on screen is untouched,
+      // so it simply stays up rather than blanking for the abandoned render.
+      return;
+    }
+
+    // Resize and blit in one synchronous step. Sizing the visible canvas clears
+    // it, and the compositor must not get a frame between that and the copy.
     holder.style.width = `${Math.floor(viewport.width)}px`;
     holder.style.height = `${Math.floor(viewport.height)}px`;
     // The link layer sizes itself from this, via PDF.js's own formula.
     holder.style.setProperty("--scale-factor", String(scale));
-
-    task = page.render({ canvas, viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
-    try {
-      await task.promise;
-    } catch {
-      return; // cancelled by a newer page or a resize
-    }
+    canvas.width = buffer.width;
+    canvas.height = buffer.height;
+    paper.drawImage(buffer, 0, 0);
 
     // Links are a bonus: a page that renders but whose links do not must still
     // be presentable, so this failing cannot take the page down with it.
