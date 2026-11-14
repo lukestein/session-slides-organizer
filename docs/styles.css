@@ -429,3 +429,62 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 @media (prefers-reduced-motion: no-preference) {
   .deck-picker { scroll-behavior: smooth; }
 }
+
+/* A pointer resting at the foot of the slide lifts the picker into view. */
+.deck-hover {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2.5rem;
+}
+
+/* Keyboard guide, raised with ? or / */
+.deck-help {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 16, 20, .72);
+  backdrop-filter: blur(3px);
+}
+
+.deck-help-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .55rem 1.1rem;
+  align-items: center;
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  max-width: min(32rem, 100%);
+  font-size: .9rem;
+  background: #1b1b21;
+  border: 1px solid #3c3c46;
+  border-radius: .6rem;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, .45);
+}
+
+.deck-help-list dt { display: flex; gap: .3rem; justify-self: end; }
+.deck-help-list dd { margin: 0; color: #c9c9d2; }
+
+.deck-help kbd {
+  font: inherit;
+  font-size: .78rem;
+  padding: .1rem .4rem;
+  color: #f2f2f4;
+  background: #2c2c34;
+  border: 1px solid #4a4a56;
+  border-bottom-width: 2px;
+  border-radius: .3rem;
+  white-space: nowrap;
+}
+
+/* Plays once when the picker stops being hidden, so it rises into view without
+   the JS having to drive a transition or keep a second hidden state. */
+@media (prefers-reduced-motion: no-preference) {
+  .deck-picker { animation: deck-picker-up .18s ease-out; }
+}
+
+@keyframes deck-picker-up {
+  from { transform: translateY(100%); }
+}

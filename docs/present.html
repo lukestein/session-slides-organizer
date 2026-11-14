@@ -25,7 +25,21 @@
     <button type="button" class="deck-edge deck-prev" id="deck-prev" aria-label="Previous slide"></button>
     <button type="button" class="deck-edge deck-next" id="deck-next" aria-label="Next slide"></button>
     <div class="deck-blank" id="deck-blank" hidden></div>
+    <div class="deck-hover" id="deck-hover" aria-hidden="true"></div>
     <div class="deck-picker" id="deck-picker" aria-label="Slides" hidden></div>
+
+    <div class="deck-help" id="deck-help" role="dialog" aria-label="Keyboard shortcuts" hidden>
+      <dl class="deck-help-list">
+        <dt><kbd>→</kbd><kbd>↓</kbd><kbd>Space</kbd></dt><dd>Next slide or build</dd>
+        <dt><kbd>←</kbd><kbd>↑</kbd></dt><dd>Previous</dd>
+        <dt><kbd>Page Up</kbd><kbd>Page Down</kbd></dt><dd>Previous / next</dd>
+        <dt><kbd>Home</kbd><kbd>End</kbd></dt><dd>First / last slide</dd>
+        <dt><kbd>B</kbd><kbd>W</kbd></dt><dd>Blank the screen black or white</dd>
+        <dt><kbd>G</kbd></dt><dd>Show all slides</dd>
+        <dt><kbd>?</kbd></dt><dd>This guide</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close this, or the slide picker</dd>
+      </dl>
+    </div>
   </div>
 </body>
 </html>

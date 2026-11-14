@@ -10,9 +10,13 @@ const heading = document.querySelector("#deck-title");
 const fullscreen = document.querySelector("#deck-fullscreen");
 const blank = document.querySelector("#deck-blank");
 const picker = document.querySelector("#deck-picker");
+const help = document.querySelector("#deck-help");
 let core;
 let presentation;
 let viewer;
+// The picker stays put when it was asked for, and withdraws when it was only
+// uncovered by the pointer resting at the foot of the slide.
+let pickerPinned = false;
 
 function message(text) {
   stage.replaceChildren(Object.assign(document.createElement("p"), {
@@ -29,7 +33,11 @@ function updateCount() {
   });
 }
 
-// B and W blank the screen as they do in PowerPoint. Any move resumes.
+function blanked() {
+  return Boolean(blank.dataset.colour);
+}
+
+// B and W blank the screen as they do in PowerPoint.
 function setBlank(colour) {
   const next = blank.dataset.colour === colour ? "" : colour;
   blank.dataset.colour = next;
@@ -41,12 +49,16 @@ function resume() {
   blank.hidden = true;
 }
 
-function showPicker(open) {
+function showHelp(open) {
+  help.hidden = !open;
+}
+
+function showPicker(open, pin = false) {
   picker.hidden = !open;
-  if (open) {
-    fillPicker();
-    picker.querySelector(".current")?.scrollIntoView({ block: "nearest", inline: "center" });
-  }
+  pickerPinned = open && pin;
+  if (!open) return;
+  fillPicker();
+  picker.querySelector(".current")?.scrollIntoView({ block: "nearest", inline: "center" });
 }
 
 // Thumbnails render only once they scroll into view, so a long deck does not
@@ -66,7 +78,7 @@ const watcher = new IntersectionObserver(entries => {
 }, { root: picker, rootMargin: "200px" });
 
 function fillPicker() {
-  if (picker.children.length) return;
+  if (picker.children.length || !presentation) return;
   picker.replaceChildren(...presentation.slides.map((slide, index) => {
     const thumb = document.createElement("button");
     thumb.type = "button";
@@ -77,8 +89,8 @@ function fillPicker() {
       className: "deck-thumb-number", textContent: String(index + 1),
     }));
     thumb.addEventListener("click", () => {
-      viewer?.goTo(index);
       resume();
+      viewer?.goTo(index);
       showPicker(false);
       updateCount();
     });
@@ -95,9 +107,20 @@ function step(move) {
 document.querySelector("#deck-prev").addEventListener("click", step(() => viewer?.prev()));
 document.querySelector("#deck-next").addEventListener("click", step(() => viewer?.next()));
 blank.addEventListener("click", resume);
+help.addEventListener("click", () => showHelp(false));
+
 document.querySelector("#deck-slides").addEventListener("click", () => {
   resume();
-  showPicker(picker.hidden);
+  showPicker(picker.hidden, true);
+});
+
+// Resting the pointer at the foot of the slide lifts the picker into view.
+document.querySelector("#deck-hover").addEventListener("pointerenter", event => {
+  if (event.pointerType === "touch" || blanked() || !picker.hidden) return;
+  showPicker(true);
+});
+picker.addEventListener("pointerleave", () => {
+  if (!pickerPinned) showPicker(false);
 });
 
 fullscreen.addEventListener("click", async () => {
@@ -137,7 +160,13 @@ document.addEventListener("keydown", event => {
 
   if (move) {
     event.preventDefault();
-    resume();
+    // Coming back from a blank screen returns to the slide that was up, rather
+    // than moving on from it.
+    if (blanked()) {
+      resume();
+      return;
+    }
+    showHelp(false);
     showPicker(false);
     move();
     updateCount();
@@ -145,6 +174,7 @@ document.addEventListener("keydown", event => {
   }
   if (key === "b" || key === "w") {
     event.preventDefault();
+    showHelp(false);
     showPicker(false);
     setBlank(key === "b" ? "black" : "white");
     return;
@@ -152,11 +182,21 @@ document.addEventListener("keydown", event => {
   if (key === "g") {
     event.preventDefault();
     resume();
-    showPicker(picker.hidden);
+    showHelp(false);
+    showPicker(picker.hidden, true);
     return;
   }
-  if (event.key === "Escape" && !picker.hidden) {
+  // Slash and question mark, shifted or not, raise the guide.
+  if (key === "?" || key === "/") {
     event.preventDefault();
+    resume();
+    showPicker(false);
+    showHelp(help.hidden);
+    return;
+  }
+  if (event.key === "Escape" && (!help.hidden || !picker.hidden)) {
+    event.preventDefault();
+    showHelp(false);
     showPicker(false);
   }
 });

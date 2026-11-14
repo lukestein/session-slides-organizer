@@ -68,8 +68,15 @@ Parsing and rendering happen on this computer and the deck is never uploaded.
 | → ↓ Space Page Down | Next slide, or the next click-by-click build |
 | ← ↑ Page Up | Previous |
 | Home / End | First / last slide |
-| **B** / **W** | Blank the screen black or white, as in PowerPoint. Press again, or move, to resume |
-| **G** | Show all slides as thumbnails along the bottom; click one to jump, Esc to close |
+| **B** / **W** | Blank the screen black or white, as in PowerPoint |
+| **G** | Show all slides as thumbnails along the bottom; click one to jump |
+| **?** or **/** | Show the keyboard guide |
+| **Esc** | Close the guide or the slide picker |
+
+Coming back from a blank screen returns to the slide that was up rather than moving on from it,
+so a key pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
+slide also lifts the picker into view, and it withdraws when the pointer leaves; opening it with
+**G** or the **Slides** button keeps it up until it is closed.
 
 Both the arrow pairs and the Page keys move, which covers the usual presentation clickers. The
 **Slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own
@@ -88,9 +95,12 @@ Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored und
 
 ### What works
 
-- `.pptx`, `.pptm`, `.ppsx`, `.ppsm` and the 1997–2003 binary `.ppt`.
+- `.pptx`, `.pptm`, `.ppsx`, `.ppsm` and the 1997–2003 binary `.ppt` and `.pps`.
 - Text, bullets, theme fonts and colors, tables, pictures, native PowerPoint charts, and
   click-by-click entrance animations.
+- Thumbnails and slide counts for the binary formats too. They are OLE containers rather than
+  ZIPs, so there is no embedded thumbnail to lift out and `docs/previews.mjs` renders their first
+  slide instead — which loads the deck renderer, but only for a file that needs it.
 
 ### What does not
 
@@ -112,10 +122,11 @@ PowerPoint exactly", because the differences are easier to show than to enumerat
 ### Trade-offs to weigh before keeping this
 
 - `docs/vendor/webppt/` adds about 1.1 MB to the repository, loaded only when a deck is opened.
-- `style-src-attr 'unsafe-inline'` had to be added to the CSP in `docs/index.html`: the renderer
-  positions every shape with an inline `style` attribute. This is the narrowest exception that
-  works — it permits inline style *attributes* only, so injected `<style>` blocks and external
-  stylesheets stay blocked, and `script-src 'self'` is untouched.
+- Two CSP exceptions in `docs/index.html`. `style-src-attr 'unsafe-inline'`, because the renderer
+  positions every shape with an inline `style` attribute; this is the narrowest form that works,
+  so injected `<style>` blocks and external stylesheets stay blocked. And `data:` in `img-src`,
+  because the rasterizer behind the binary-format thumbnails draws through a `data:` SVG URL.
+  Both are image and style concessions only — `script-src 'self'` is untouched.
 - web-ppt is young and has few users. It is the real risk here, not the CSP line: it is 1.1 MB of
   third-party code that parses decks handed over by presenters. Review it before trusting it on a
   conference machine, and re-check on each update. Vendored files carry no manifest, so
