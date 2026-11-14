@@ -360,6 +360,10 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   background: transparent;
   cursor: pointer;
   opacity: 0;
+  /* Drawn over the slide, so they must not take its clicks: a link at the edge
+     of a page would never be reachable. present.mjs places edge clicks by
+     coordinate instead. Keyboard focus is unaffected. */
+  pointer-events: none;
 }
 
 .deck-prev { left: 0; }
@@ -489,3 +493,55 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 @media (prefers-reduced-motion: reduce) {
   .deck-picker, .deck-picker.open { transition: none; }
 }
+
+/* PDF presenting: the page, and the link layer over it. */
+.pdf-page {
+  position: relative;
+  background: #fff;
+  /* PDF.js sizes the link layer from these; --scale-factor is set per page. */
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+
+.pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The subset of PDF.js's annotation styles that clickable links need. Forms,
+   popups and editing are not rendered here, so their rules are left out. */
+.annotationLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.annotationLayer section {
+  position: absolute;
+  text-align: initial;
+  pointer-events: auto;
+  box-sizing: border-box;
+  transform-origin: 0 0;
+}
+
+.annotationLayer .linkAnnotation > a {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 1em;
+}
+
+.annotationLayer .linkAnnotation:not(.hasBorder) > a:hover {
+  opacity: .2;
+  background-color: rgb(255 255 0);
+}
+
+.annotationLayer .linkAnnotation.hasBorder:hover { background-color: rgb(255 255 0 / .2); }
+.annotationLayer .hasBorder { background-size: 100% 100%; }

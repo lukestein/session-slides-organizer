@@ -1,9 +1,9 @@
-// Presents one PowerPoint deck in its own tab. The organizer passes the deck as
-// a blob URL, the same way it hands a PDF to the browser's own viewer. Parsing
-// and rendering stay on this computer; nothing is uploaded.
+// Presents one deck in its own tab. The organizer hands over a blob URL; this
+// page reads it, renders it, and never uploads anything.
 //
-// Everything here calls the renderer's public API, so the vendored copy under
-// vendor/webppt/ stays untouched and upstream updates drop straight in.
+// The shell here — bar, keyboard, blanking, thumbnail strip, full screen — is
+// the same whatever the format. Rendering is a small engine per format, in
+// deck-pptx.mjs and deck-pdf.mjs.
 const stage = document.querySelector("#deck-stage");
 const counter = document.querySelector("#deck-count");
 const heading = document.querySelector("#deck-title");
@@ -11,9 +11,9 @@ const fullscreen = document.querySelector("#deck-fullscreen");
 const blank = document.querySelector("#deck-blank");
 const picker = document.querySelector("#deck-picker");
 const help = document.querySelector("#deck-help");
-let core;
-let presentation;
-let viewer;
+const downloadLink = document.querySelector("#deck-download");
+const original = document.querySelector("#deck-original");
+let deck;
 // The picker stays put when it was asked for, and withdraws when it was only
 // uncovered by the pointer resting at the foot of the slide.
 let pickerPinned = false;
@@ -25,11 +25,11 @@ function message(text) {
 }
 
 function updateCount() {
-  if (!viewer) return;
-  counter.textContent = `${viewer.index + 1} / ${viewer.count}`;
+  if (!deck) return;
+  counter.textContent = `${deck.index + 1} / ${deck.count}`;
   // picker.children is an HTMLCollection, which has no entries().
   Array.from(picker.children).forEach((thumb, index) => {
-    thumb.classList.toggle("current", index === viewer.index);
+    thumb.classList.toggle("current", index === deck.index);
   });
 }
 
@@ -72,27 +72,41 @@ function showPicker(open, pin = false) {
     left: current.offsetLeft - (picker.clientWidth - current.offsetWidth) / 2,
     behavior: "instant",
   });
+  requestAnimationFrame(() => requestAnimationFrame(paintVisibleThumbs));
 }
 
-// Thumbnails render only once they scroll into view, so a long deck does not
-// pay for every slide up front.
+// Thumbnails render only once they come into view, so a long deck does not pay
+// for every slide up front.
+function paintThumb(thumb) {
+  if (thumb.dataset.painted) return;
+  thumb.dataset.painted = "yes";
+  watcher.unobserve(thumb);
+  Promise.resolve()
+    .then(() => deck.renderThumb(Number(thumb.dataset.index), thumb))
+    .catch(() => {
+      // A slide that will not render keeps its number and stays clickable.
+    });
+}
+
 const watcher = new IntersectionObserver(entries => {
   for (const entry of entries) {
-    if (!entry.isIntersecting) continue;
-    const thumb = entry.target;
-    watcher.unobserve(thumb);
-    const slide = presentation.slides[Number(thumb.dataset.index)];
-    try {
-      thumb.insertAdjacentHTML("beforeend", core.renderSlideToSvg(presentation, slide));
-    } catch {
-      // A slide that will not render keeps its number and stays clickable.
-    }
+    if (entry.isIntersecting) paintThumb(entry.target);
   }
 }, { root: picker, rootMargin: "200px" });
 
+// The observer can miss the very first open, while the strip is still sliding
+// into place, so sweep what is on screen once it has settled.
+function paintVisibleThumbs() {
+  const strip = picker.getBoundingClientRect();
+  for (const thumb of picker.children) {
+    const box = thumb.getBoundingClientRect();
+    if (box.right > strip.left - 200 && box.left < strip.right + 200) paintThumb(thumb);
+  }
+}
+
 function fillPicker() {
-  if (picker.children.length || !presentation) return;
-  picker.replaceChildren(...presentation.slides.map((slide, index) => {
+  if (picker.children.length || !deck) return;
+  picker.replaceChildren(...Array.from({ length: deck.count }, (unused, index) => {
     const thumb = document.createElement("button");
     thumb.type = "button";
     thumb.className = "deck-thumb";
@@ -103,7 +117,7 @@ function fillPicker() {
     }));
     thumb.addEventListener("click", () => {
       resume();
-      viewer?.goTo(index);
+      deck?.goTo(index);
       showPicker(false);
       updateCount();
     });
@@ -117,8 +131,23 @@ function step(move) {
   return () => { resume(); move(); updateCount(); };
 }
 
-document.querySelector("#deck-prev").addEventListener("click", step(() => viewer?.prev()));
-document.querySelector("#deck-next").addEventListener("click", step(() => viewer?.next()));
+document.querySelector("#deck-prev").addEventListener("click", step(() => deck?.prev()));
+document.querySelector("#deck-next").addEventListener("click", step(() => deck?.next()));
+
+// Clicking near the left or right edge moves a slide. The strips that mark
+// those zones are not hit-testable, so a link sitting at the edge of a page
+// still takes its own click; what is left over is placed by where it landed.
+const edgeShare = 0.12;
+document.addEventListener("click", event => {
+  if (!deck) return;
+  // Links, controls and the page furniture keep their own clicks.
+  if (event.target.closest("a, button, input, .deck-bar, .deck-picker, .deck-help, .deck-blank")) {
+    return;
+  }
+  const edge = window.innerWidth * edgeShare;
+  if (event.clientX <= edge) step(() => deck.prev())();
+  else if (event.clientX >= window.innerWidth - edge) step(() => deck.next())();
+});
 blank.addEventListener("click", resume);
 help.addEventListener("click", () => showHelp(false));
 
@@ -138,7 +167,7 @@ document.addEventListener("pointermove", event => {
   if (event.pointerType === "touch" || pickerPinned) return;
   const fromFoot = window.innerHeight - event.clientY;
   if (!pickerOpen()) {
-    if (fromFoot <= liftWithin && !blanked() && help.hidden) showPicker(true);
+    if (deck && fromFoot <= liftWithin && !blanked() && help.hidden) showPicker(true);
   } else if (fromFoot > Math.max(picker.offsetHeight, liftWithin) + 8) {
     // max(): an unfilled strip measures only its padding, which would put the
     // closing line below the opening one and shut it the moment it opened.
@@ -173,10 +202,10 @@ document.addEventListener("fullscreenchange", () => {
 document.addEventListener("keydown", event => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
   const moves = {
-    ArrowRight: () => viewer?.next(), PageDown: () => viewer?.next(), " ": () => viewer?.next(),
-    ArrowDown: () => viewer?.next(), ArrowLeft: () => viewer?.prev(), PageUp: () => viewer?.prev(),
-    ArrowUp: () => viewer?.prev(), Home: () => viewer?.goTo(0),
-    End: () => viewer?.goTo((viewer.count ?? 1) - 1),
+    ArrowRight: () => deck?.next(), PageDown: () => deck?.next(), " ": () => deck?.next(),
+    ArrowDown: () => deck?.next(), ArrowLeft: () => deck?.prev(), PageUp: () => deck?.prev(),
+    ArrowUp: () => deck?.prev(), Home: () => deck?.goTo(0),
+    End: () => deck?.goTo((deck.count ?? 1) - 1),
   };
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   const move = moves[event.key];
@@ -224,10 +253,31 @@ document.addEventListener("keydown", event => {
   }
 });
 
+const mimeTypes = {
+  pdf: "application/pdf",
+  ppt: "application/vnd.ms-powerpoint",
+  pps: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  pptm: "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
+  ppsx: "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+  ppsm: "application/vnd.ms-powerpoint.slideshow.macroEnabled.12",
+};
+
+// Re-fit the page after the window changes shape, and after entering or leaving
+// full screen. Only the PDF engine needs this; the deck renderer scales itself.
+let resizing;
+function refit() {
+  clearTimeout(resizing);
+  resizing = setTimeout(() => deck?.resize?.(), 120);
+}
+window.addEventListener("resize", refit);
+document.addEventListener("fullscreenchange", refit);
+
 async function start() {
   const parameters = new URLSearchParams(location.search);
   const source = parameters.get("src");
   const title = parameters.get("title") ?? "";
+  const filename = parameters.get("name") ?? "";
   heading.textContent = title;
   document.title = title ? `Presenting ${title}` : "Presenting";
 
@@ -236,31 +286,52 @@ async function start() {
     return;
   }
 
-  let deck;
+  let data;
   try {
-    // Read the deck up front so that closing the organizer tab, or removing the
-    // row, cannot pull the file out from under a talk in progress.
-    deck = await (await fetch(source)).arrayBuffer();
+    // Read the file up front so that closing the organizer tab, or removing the
+    // row, cannot pull it out from under a talk in progress.
+    data = await (await fetch(source)).arrayBuffer();
   } catch {
     message("This deck is no longer available. Open it again from the organizer tab.");
     return;
   }
 
+  const extension = /[.]([^.]+)$/.exec(filename)?.[1].toLowerCase() ?? "";
+  const type = mimeTypes[extension] ?? "application/octet-stream";
+  // A copy of our own, so the buttons keep working however the organizer tab
+  // fares. Blob() copies, so the renderer may still claim the buffer below.
+  const ours = URL.createObjectURL(new Blob([data], { type }));
+  downloadLink.href = ours;
+  downloadLink.download = filename || "presentation";
+  downloadLink.hidden = false;
+  if (extension === "pdf") {
+    // Links, search and printing live in the browser's own PDF viewer.
+    original.href = ours;
+    original.hidden = false;
+  }
+
   try {
-    const [coreModule, viewerModule] = await Promise.all([
-      import("./vendor/webppt/core/core.js"),
-      import("./vendor/webppt/viewer/viewer-core.js"),
-    ]);
-    core = coreModule;
-    presentation = await core.parse(deck);
-    stage.replaceChildren();
-    viewer = new viewerModule.Viewer(stage, presentation, { animate: true });
+    if (extension === "pdf") {
+      const { openPdf } = await import("./deck-pdf.mjs");
+      deck = await openPdf(stage, data, updateCount);
+    } else {
+      const { openPowerPoint } = await import("./deck-pptx.mjs");
+      deck = await openPowerPoint(stage, data);
+    }
   } catch {
-    message("This deck couldn’t be opened here. Download it to present in PowerPoint.");
+    message(extension === "pdf"
+      ? "This PDF couldn\u2019t be opened here. Download it to open in another viewer."
+      : "This deck couldn\u2019t be opened here. Download it to present in PowerPoint.");
     return;
   }
-  // Outside the catch: a slip here is not the deck failing to open.
+  // Outside the catch: a slip here is not the file failing to open.
   updateCount();
+  // The strip can be lifted by a resting pointer before the file has loaded,
+  // in which case it opened with nothing to show. Fill it now.
+  if (pickerOpen()) {
+    fillPicker();
+    paintVisibleThumbs();
+  }
 }
 
 start();
