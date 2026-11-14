@@ -1,5 +1,6 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
+import { canPresent, openDeck } from "./deck-viewer.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -187,8 +188,19 @@ function makeRow(file, extension) {
   openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
   download.setAttribute("aria-label", `Download ${file.name}`);
 
-  openPdf.hidden = !isPdf;
-  if (isPdf) openPdf.href = `${url}#view=Fit`;
+  const presentable = canPresent(extension);
+  openPdf.hidden = !isPdf && !presentable;
+  if (isPdf) {
+    openPdf.href = `${url}#view=Fit`;
+  } else if (presentable) {
+    // Decks render in this tab; a blob URL would only download them again.
+    openPdf.href = "#";
+    openPdf.removeAttribute("target");
+    openPdf.addEventListener("click", event => {
+      event.preventDefault();
+      openDeck(slide.file, slide.friendlyName);
+    });
+  }
   download.href = url;
   download.draggable = false;
 

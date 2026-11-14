@@ -51,8 +51,86 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 
 - [x] Add one-click ZIP export with decks numbered and named in session order.
 - [ ] Test the PairDrop handoff on the classroom computer. **Receive with PairDrop** creates a temporary room in a separate tab. Set the classroom browser’s display name in PairDrop to **Presentation Computer** so presenters know which device to select. PairDrop saves the name in that browser profile. Have presenters join with the QR code or room code and send one deck at a time. Accept it in PairDrop, then return to the organizer and click **Import received files** or drop the downloaded deck into the list. The picker starts in Downloads where supported.
-- [ ] Explore opening PowerPoint and Keynote decks in a browser tab. Check local rendering, fidelity, and whether available tools require uploading the deck.
+- [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting decks in the browser** below. PowerPoint works locally; Keynote does not.
+- [ ] Decide whether to keep the in-browser deck presenter, given the bundle size, the relaxed style CSP, and the age of the renderer.
 - [ ] Explore a PDF presentation view with one page at a time and a fullscreen control.
+
+## Presenting decks in the browser
+
+**Open in browser** now appears on PowerPoint rows as well as PDFs. It opens the deck in a
+presenter overlay in the same tab: arrow keys, space, Page Up/Down, Home/End to move, Esc to
+close, and a full-screen button. Parsing and rendering happen on this computer and the deck is
+never uploaded.
+
+Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored under
+`docs/vendor/webppt/`. Its only runtime dependency is fflate, which the site already bundles.
+
+### What works
+
+- `.pptx`, `.pptm`, `.ppsx`, `.ppsm` and the 1997–2003 binary `.ppt`.
+- Text, bullets, theme fonts and colors, tables, pictures, native PowerPoint charts, and
+  click-by-click entrance animations.
+
+### What does not
+
+- **Keynote cannot be rendered.** A `.key` file keeps its slides in Apple's undocumented IWA
+  format (Snappy-compressed protobuf whose schema changes between Keynote releases), and no
+  JavaScript parser exists. The package carries only a slide-1 `preview.jpg` plus a cache of
+  356x200 navigator thumbnails that is often incomplete and has no reliable slide order, so it
+  cannot stand in for a render. Keynote rows keep the preview, the download, and the ZIP.
+  Some `.key` files are also package *directories* rather than single files; those cannot be
+  added to the list at all.
+- Fidelity is close but not exact. Autofit text can wrap differently from PowerPoint, and
+  picture placeholders may pick up a border PowerPoint does not draw. Decks that rely on fonts
+  the room computer lacks will substitute, as they would in PowerPoint.
+
+### Trade-offs to weigh before keeping this
+
+- `docs/vendor/webppt/` adds about 1.1 MB to the repository, loaded only when a deck is opened.
+- `style-src 'self' 'unsafe-inline'` had to be added to the CSP in `docs/index.html`: the
+  renderer positions every shape with an inline `style` attribute.
+- web-ppt is young and has few users. Review it before trusting it on a conference machine, and
+  re-check on each update.
+
+### Update the bundled renderer
+
+web-ppt ships bare specifiers that browsers cannot resolve without an import map, and an inline
+import map would need another CSP exception. Vendoring rewrites them to relative paths instead.
+From the repository root:
+
+```sh
+(
+  set -eu
+  webppt_version=0.8.0
+  staging="$(mktemp -d)"
+  trap 'rm -rf "$staging"' EXIT
+  npm pack --pack-destination "$staging" "@web-ppt/core@$webppt_version"
+  npm pack --pack-destination "$staging" "@web-ppt/viewer-core@$webppt_version"
+  mkdir -p "$staging/core" "$staging/viewer"
+  tar -xzf "$staging/web-ppt-core-$webppt_version.tgz" -C "$staging/core" --strip-components 1
+  tar -xzf "$staging/web-ppt-viewer-core-$webppt_version.tgz" -C "$staging/viewer" --strip-components 1
+
+  rm -rf docs/vendor/webppt
+  mkdir -p docs/vendor/webppt/core docs/vendor/webppt/viewer
+  cp "$staging"/core/dist/*.js docs/vendor/webppt/core/
+  cp "$staging"/viewer/dist/*.js docs/vendor/webppt/viewer/
+  cp "$staging/core/LICENSE" docs/vendor/webppt/LICENSE
+
+  sed -i '' \
+    -e 's|"@web-ppt/core/chart-ex"|"./chart-ex.js"|g' \
+    -e 's|"@web-ppt/core/emf-plus"|"./emf-plus.js"|g' \
+    -e 's|"@web-ppt/core/three-d"|"./three-d.js"|g' \
+    -e 's|"@web-ppt/core/zip"|"./zip.js"|g' \
+    -e 's|"@web-ppt/core"|"./core.js"|g' \
+    -e 's|"fflate"|"../../fflate/esm/browser.js"|g' docs/vendor/webppt/core/*.js
+  sed -i '' -e 's|"@web-ppt/core"|"../core/core.js"|g' docs/vendor/webppt/viewer/*.js
+
+  grep -r '"@web-ppt/\|"fflate"' docs/vendor/webppt/ && echo "UNRESOLVED SPECIFIERS" || echo "specifiers rewritten"
+)
+```
+
+Keep `@web-ppt/core` and `@web-ppt/viewer-core` on the same version. Test a `.pptx` with charts
+and pictures, a legacy `.ppt`, and confirm the browser console reports no CSP violations.
 
 ## Publish with GitHub Pages
 
