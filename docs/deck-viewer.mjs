@@ -67,9 +67,26 @@ export async function openDeck(file, title) {
   const message = text => { stage.innerHTML = `<div class="deck-message">${text}</div>`; };
 
   overlay.querySelector(".deck-close").addEventListener("click", closeDeck);
-  overlay.querySelector(".deck-fullscreen").addEventListener("click", () => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else overlay.requestFullscreen?.().catch(() => {});
+  const fullscreen = overlay.querySelector(".deck-fullscreen");
+  fullscreen.addEventListener("click", async () => {
+    let worked = true;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await overlay.requestFullscreen();
+        // Some embedded browsers resolve the request without acting on it.
+        worked = Boolean(document.fullscreenElement);
+      }
+    } catch {
+      worked = false;
+    }
+    if (worked) return;
+    // The overlay already covers the window, so point at the browser's own
+    // full screen rather than leaving the button looking broken.
+    const shortcut = navigator.platform.startsWith("Mac") ? "⌃⌘F" : "F11";
+    fullscreen.textContent = `Use ${shortcut}`;
+    setTimeout(() => { fullscreen.textContent = "Full screen"; }, 4000);
   });
 
   onKey = event => {

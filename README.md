@@ -84,13 +84,25 @@ Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored und
   picture placeholders may pick up a border PowerPoint does not draw. Decks that rely on fonts
   the room computer lacks will substitute, as they would in PowerPoint.
 
+Entrance animations and click-by-click builds do play, so a deck that reveals bullets on click
+behaves as the presenter expects. The list on the page says only that decks "may not match
+PowerPoint exactly", because the differences are easier to show than to enumerate.
+
 ### Trade-offs to weigh before keeping this
 
 - `docs/vendor/webppt/` adds about 1.1 MB to the repository, loaded only when a deck is opened.
-- `style-src 'self' 'unsafe-inline'` had to be added to the CSP in `docs/index.html`: the
-  renderer positions every shape with an inline `style` attribute.
-- web-ppt is young and has few users. Review it before trusting it on a conference machine, and
-  re-check on each update.
+- `style-src-attr 'unsafe-inline'` had to be added to the CSP in `docs/index.html`: the renderer
+  positions every shape with an inline `style` attribute. This is the narrowest exception that
+  works — it permits inline style *attributes* only, so injected `<style>` blocks and external
+  stylesheets stay blocked, and `script-src 'self'` is untouched.
+- web-ppt is young and has few users. It is the real risk here, not the CSP line: it is 1.1 MB of
+  third-party code that parses decks handed over by presenters. Review it before trusting it on a
+  conference machine, and re-check on each update. Vendored files carry no manifest, so
+  Dependabot will not warn about them.
+- Full screen through the browser's Fullscreen API is **untested on a real browser** — it was
+  refused by the embedded browser used during development. The button falls back to naming the
+  browser's own full-screen shortcut, and the overlay already covers the window. Confirm this on
+  the classroom computer.
 
 ### Update the bundled renderer
 

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="description" content="Arrange conference slides and open each talk from one list.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Session Slides Organizer</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
@@ -22,6 +22,10 @@
     <div class="intro">
       <p>Arrange your slides and open each one when it’s time to present.</p>
       <p>Files stay on this computer. Keep this tab open to maintain your list.</p>
+      <p class="caveat"><b aria-hidden="true">*</b> PowerPoint decks open in a built-in viewer, so they
+        may not match PowerPoint exactly — substituted fonts and text that doesn’t fit its box are the
+        usual differences. Download the deck to present from PowerPoint itself. Keynote files can only
+        be downloaded.</p>
     </div>
 
     <ol id="slides" aria-label="Presentation order" role="list" hidden></ol>

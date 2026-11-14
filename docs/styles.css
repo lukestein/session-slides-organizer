@@ -51,6 +51,9 @@ main {
 }
 h1, h2, p { margin: 0; }
 .intro { margin-bottom: 1rem; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+.intro .caveat { margin-top: .5rem; font-size: .82rem; opacity: .9; max-width: 56ch; }
+.intro .caveat b { font-weight: 700; }
+.open-pdf b { font-weight: 700; margin-left: .1em; }
 footer { padding-block: 1.35rem 2rem; color: var(--muted); font-size: .8rem; }
 footer a { color: var(--accent); text-underline-offset: .15em; }
 

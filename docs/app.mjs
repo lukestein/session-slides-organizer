@@ -193,9 +193,15 @@ function makeRow(file, extension) {
   if (isPdf) {
     openPdf.href = `${url}#view=Fit`;
   } else if (presentable) {
+    // The asterisk points at the rendering caveat above the list.
+    openPdf.append(Object.assign(document.createElement("b"), {
+      textContent: "*", ariaHidden: "true",
+    }));
     // Decks render in this tab; a blob URL would only download them again.
     openPdf.href = "#";
     openPdf.removeAttribute("target");
+    openPdf.setAttribute("aria-label",
+      `Open in browser: ${file.name}. May not match PowerPoint exactly.`);
     openPdf.addEventListener("click", event => {
       event.preventDefault();
       openDeck(slide.file, slide.friendlyName);
