@@ -2,7 +2,7 @@
 
 A browser-based organizer for conference sessions. Drop in PDFs, PowerPoint decks, and Keynote files, edit their display titles, and arrange the talks in speaking order. The app processes the files on the room computer and keeps the list for the life of the tab.
 
-- **PDFs** can open in a new browser tab, fit to one page where the viewer supports it, or download for use in a native viewer.
+- **Open in browser** presents PDFs and PowerPoint decks alike, in a new tab, one slide at a time. PDF links stay clickable, and **Open original** in the presenter hands the file to the browser's own PDF viewer for search and printing.
 - **Downloads** use the current position, title, and original extension, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the download uses the original filename after the position.
 - **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order.
 - **Previews and file details** include the first page of a PDF or an embedded deck preview when available. All files show their size. PDFs and modern PowerPoint decks show their page or slide count when readable.
@@ -55,11 +55,16 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 - [ ] Decide whether to keep the in-browser deck presenter, given the bundle size, the relaxed style CSP, and the age of the renderer.
 - [ ] Explore a PDF presentation view with one page at a time and a fullscreen control.
 
-## Presenting decks in the browser
+## Presenting in the browser
 
-**Open in browser\*** now appears on PowerPoint rows as well as PDFs, and opens the deck in a new
-tab, as a PDF does — so the deck can go to the projector while the list stays on the laptop.
-Parsing and rendering happen on this computer and the deck is never uploaded.
+**Open in browser** opens the file in a new tab, so it can go to the projector while the list
+stays on the laptop. PDFs and PowerPoint decks share one presenter: the same keys, the same
+thumbnail strip, the same blanking. Parsing and rendering happen on this computer and nothing is
+uploaded. PowerPoint rows carry an asterisk pointing at the rendering caveat; PDFs do not need
+one, since PDF.js is the engine Firefox ships.
+
+The presenter's own bar carries **Download**, which hands over the same numbered file the row
+would, and, for a PDF, **Open original**, which opens it in the browser's own viewer.
 
 ### Presenter controls
 
@@ -72,6 +77,9 @@ Parsing and rendering happen on this computer and the deck is never uploaded.
 | **G** | Show all slides as thumbnails along the bottom; click one to jump |
 | **?** or **/** | Show the keyboard guide |
 | **Esc** | Close the guide or the slide picker |
+
+For a PDF the arrows move a page at a time; for a deck they play the next click-by-click build
+before moving on, as PowerPoint does.
 
 Coming back from a blank screen returns to the slide that was up rather than moving on from it,
 so a key pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
@@ -95,6 +103,8 @@ Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored und
 
 ### What works
 
+- PDFs, through the copy of PDF.js the site already bundles for thumbnails, so presenting them
+  costs no extra download. Links keep working, internal jumps included.
 - `.pptx`, `.pptm`, `.ppsx`, `.ppsm` and the 1997–2003 binary `.ppt` and `.pps`.
 - Text, bullets, theme fonts and colors, tables, pictures, native PowerPoint charts, and
   click-by-click entrance animations.
@@ -111,6 +121,9 @@ Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored und
   cannot stand in for a render. Keynote rows keep the preview, the download, and the ZIP.
   Some `.key` files are also package *directories* rather than single files; those cannot be
   added to the list at all.
+- A PDF in the presenter gives up what the browser's own viewer offers around the page: its
+  toolbar, printing, and find across the whole document — the browser's own find reaches only the
+  page on screen. **Open original** is one click away for all of it.
 - Fidelity is close but not exact. Autofit text can wrap differently from PowerPoint, and
   picture placeholders may pick up a border PowerPoint does not draw. Decks that rely on fonts
   the room computer lacks will substitute, as they would in PowerPoint.

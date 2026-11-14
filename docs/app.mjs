@@ -1,6 +1,6 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
-import { canPresent, presentUrl } from "./deck-viewer.mjs";
+import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -67,7 +67,11 @@ function downloadName(slide, index, width = 1) {
 }
 
 function updateDownload(slide, index) {
-  slide.download.download = downloadName(slide, index);
+  const name = downloadName(slide, index);
+  slide.download.download = name;
+  // The presenter offers the same download, so it needs the same name, which
+  // moves with the position and the title.
+  if (slide.presentable) slide.open.href = presentUrl(slide.url, slide.friendlyName, name);
 }
 
 function sessionFiles() {
@@ -93,7 +97,7 @@ function updateArchive() {
 
 function updateList() {
   list.hidden = slides.length === 0;
-  deckCaveat.hidden = !slides.some(slide => slide.presentable);
+  deckCaveat.hidden = !slides.some(slide => needsCaveat(slide.extension));
   updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
@@ -175,7 +179,7 @@ function makeRow(file, extension) {
   const url = URL.createObjectURL(source);
   const defaultTitle = (file.name.slice(0, -(extension.length + 1)).trim() || file.name).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
-  const slide = { row, file, title, url, position, download, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
+  const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
@@ -191,19 +195,18 @@ function makeRow(file, extension) {
   download.setAttribute("aria-label", `Download ${file.name}`);
 
   const { presentable } = slide;
-  openPdf.hidden = !isPdf && !presentable;
-  if (isPdf) {
-    openPdf.href = `${url}#view=Fit`;
-  } else if (presentable) {
-    // The asterisk points at the rendering caveat above the list.
+  openPdf.hidden = !presentable;
+  if (needsCaveat(extension)) {
+    // The asterisk points at the rendering caveat below the list.
     openPdf.append(Object.assign(document.createElement("b"), {
       textContent: "*", ariaHidden: "true",
     }));
-    // A blob URL would only download the deck, so hand it to the presenter page.
-    openPdf.href = presentUrl(url, defaultTitle);
     openPdf.setAttribute("aria-label",
       `Open in browser: ${file.name}. May not match PowerPoint exactly.`);
   }
+  // Every format goes to the presenter: PDFs for the slide picker and blanking,
+  // decks because a blob URL would only download them again. updateDownload()
+  // fills in the href, since it depends on the position.
   download.href = url;
   download.draggable = false;
 
@@ -211,7 +214,6 @@ function makeRow(file, extension) {
     slide.friendlyName = title.value.trim() || defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
-    if (presentable) openPdf.href = presentUrl(url, slide.friendlyName);
     updateArchive();
   });
   title.addEventListener("blur", () => {
