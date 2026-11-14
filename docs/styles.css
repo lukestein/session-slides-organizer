@@ -294,8 +294,9 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   grid-template-rows: auto 1fr;
   height: 100dvh;
   /* The strip parks below the foot, so clip rather than grow a scrollbar and
-     shove the slide around. */
-  overflow: hidden;
+     shove the slide around. Clip, not hidden: hidden still makes a scroll
+     container that script and focus can scroll, which moved the slide. */
+  overflow: clip;
 }
 
 .deck-bar {
@@ -335,7 +336,8 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .deck-stage {
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* clip, not hidden, so nothing can scroll the slide out of place. */
+  overflow: clip;
   padding: .5rem;
 }
 

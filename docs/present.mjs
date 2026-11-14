@@ -63,7 +63,15 @@ function showPicker(open, pin = false) {
   pickerPinned = open && pin;
   if (!open) return;
   fillPicker();
-  picker.querySelector(".current")?.scrollIntoView({ block: "nearest", inline: "center" });
+  const current = picker.querySelector(".current");
+  if (!current) return;
+  // Scroll the strip itself rather than calling scrollIntoView, which walks up
+  // and scrolls every scrollable ancestor — and a clipped box still scrolls
+  // programmatically, which yanked the slide to the top of the window.
+  picker.scrollTo({
+    left: current.offsetLeft - (picker.clientWidth - current.offsetWidth) / 2,
+    behavior: "instant",
+  });
 }
 
 // Thumbnails render only once they scroll into view, so a long deck does not
