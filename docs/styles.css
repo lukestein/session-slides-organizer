@@ -293,6 +293,9 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100dvh;
+  /* The strip parks below the foot, so clip rather than grow a scrollbar and
+     shove the slide around. */
+  overflow: hidden;
 }
 
 .deck-bar {
@@ -388,6 +391,9 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   position: absolute;
   inset: auto 0 0;
   z-index: 3;
+  transform: translateY(100%);
+  visibility: hidden;
+  transition: transform .2s ease-out, visibility 0s linear .2s;
   display: flex;
   gap: .5rem;
   padding: .6rem;
@@ -395,6 +401,12 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   overscroll-behavior: contain;
   background: rgba(16, 16, 20, .94);
   border-top: 1px solid #2c2c34;
+}
+
+.deck-picker.open {
+  transform: none;
+  visibility: visible;
+  transition: transform .2s ease-out, visibility 0s;
 }
 
 .deck-thumb {
@@ -428,13 +440,6 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 
 @media (prefers-reduced-motion: no-preference) {
   .deck-picker { scroll-behavior: smooth; }
-}
-
-/* A pointer resting at the foot of the slide lifts the picker into view. */
-.deck-hover {
-  position: absolute;
-  inset: auto 0 0;
-  height: 2.5rem;
 }
 
 /* Keyboard guide, raised with ? or / */
@@ -479,12 +484,6 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   white-space: nowrap;
 }
 
-/* Plays once when the picker stops being hidden, so it rises into view without
-   the JS having to drive a transition or keep a second hidden state. */
-@media (prefers-reduced-motion: no-preference) {
-  .deck-picker { animation: deck-picker-up .18s ease-out; }
-}
-
-@keyframes deck-picker-up {
-  from { transform: translateY(100%); }
+@media (prefers-reduced-motion: reduce) {
+  .deck-picker, .deck-picker.open { transition: none; }
 }

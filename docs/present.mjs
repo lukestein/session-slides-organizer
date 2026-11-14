@@ -53,8 +53,13 @@ function showHelp(open) {
   help.hidden = !open;
 }
 
+function pickerOpen() {
+  return picker.classList.contains("open");
+}
+
 function showPicker(open, pin = false) {
-  picker.hidden = !open;
+  // A class, not the hidden attribute, so the strip can slide both ways.
+  picker.classList.toggle("open", open);
   pickerPinned = open && pin;
   if (!open) return;
   fillPicker();
@@ -111,16 +116,26 @@ help.addEventListener("click", () => showHelp(false));
 
 document.querySelector("#deck-slides").addEventListener("click", () => {
   resume();
-  showPicker(picker.hidden, true);
+  showPicker(!pickerOpen(), true);
 });
 
 // Resting the pointer at the foot of the slide lifts the picker into view.
-document.querySelector("#deck-hover").addEventListener("pointerenter", event => {
-  if (event.pointerType === "touch" || blanked() || !picker.hidden) return;
-  showPicker(true);
-});
-picker.addEventListener("pointerleave", () => {
-  if (!pickerPinned) showPicker(false);
+// This reads the pointer's own position rather than enter and leave events on
+// the strip: the open strip covers the ground that opened it, so hit testing
+// alone would uncover it, re-cover it, and flicker without the pointer moving.
+// Opening within 2.5rem of the foot and closing only above the open strip
+// leaves a band where neither happens, which settles it.
+const liftWithin = 40;
+document.addEventListener("pointermove", event => {
+  if (event.pointerType === "touch" || pickerPinned) return;
+  const fromFoot = window.innerHeight - event.clientY;
+  if (!pickerOpen()) {
+    if (fromFoot <= liftWithin && !blanked() && help.hidden) showPicker(true);
+  } else if (fromFoot > Math.max(picker.offsetHeight, liftWithin) + 8) {
+    // max(): an unfilled strip measures only its padding, which would put the
+    // closing line below the opening one and shut it the moment it opened.
+    showPicker(false);
+  }
 });
 
 fullscreen.addEventListener("click", async () => {
@@ -183,7 +198,7 @@ document.addEventListener("keydown", event => {
     event.preventDefault();
     resume();
     showHelp(false);
-    showPicker(picker.hidden, true);
+    showPicker(!pickerOpen(), true);
     return;
   }
   // Slash and question mark, shifted or not, raise the guide.
@@ -194,7 +209,7 @@ document.addEventListener("keydown", event => {
     showHelp(help.hidden);
     return;
   }
-  if (event.key === "Escape" && (!help.hidden || !picker.hidden)) {
+  if (event.key === "Escape" && (!help.hidden || pickerOpen())) {
     event.preventDefault();
     showHelp(false);
     showPicker(false);
