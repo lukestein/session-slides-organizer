@@ -1,0 +1,149 @@
+# demo-recorder
+
+Records the short, silent demo of the organizer for social media, **without
+needing macOS screen-recording or accessibility permission**. It launches a real
+Google Chrome with a throwaway profile, drives it over the DevTools Protocol, and
+pulls frames out of the browser itself (`Page.captureScreenshot`). Nothing outside
+the page can reach the frame: no Finder, no file picker, no directory structure,
+no tab strip, bookmarks or URL bar. Output is 1920x1080, H.264, no audio.
+
+## Nothing here is committed by accident
+
+`.gitignore` is an **allow-list**: everything is ignored except the README, the
+scripts and `sync.sh`. That is deliberate. `serve/demo-assets/` holds copies of
+real, unpublished decks, `frames/` holds ~1500 pictures of their slides, and
+`downloads/` holds a ZIP of all four. A block-list would need a new rule every
+time the rig grows a new output directory; an allow-list cannot be caught out.
+
+Check what a commit would actually include with:
+
+```sh
+git add -An demo-recorder/
+```
+
+Note that the finished video shows real slide content full screen. That is the
+point of the demo, but it is worth a look before posting.
+
+## Scratch output — safe to delete
+
+`frames/` holds the ~1000 JPEGs ffmpeg turns into `demo.mp4`. It is pure
+intermediate output: rewritten from scratch on every run and never read again
+once the video exists, so delete it whenever you like. Same for `downloads/`,
+`shots/`, `serve/`, `chrome-profile-*/` and the `.log` files — `sync.sh` and the
+next run rebuild everything they need.
+
+Do note what is in there: `frames/` is a few hundred megabytes of rendered images
+of the actual slides, and `downloads/` holds a ZIP of all four decks. Your own
+content, nothing from outside — but not a folder to pass around casually. None of
+it can be committed; see the allow-list above.
+
+## Run it
+
+```sh
+./sync.sh                 # freeze the committed site + the sample decks into serve/
+node demo.mjs             # dry run, no video, prints what each beat did
+node demo.mjs --video     # writes demo.mp4
+node demo.mjs --beats=drop1,drop3,reorder   # just these beats
+```
+
+`sync.sh` builds `serve/` from a git ref rather than the working tree, so a take
+always matches something that shipped — `REF=main` by default, and `SLIDES=...`
+overrides where the decks come from (`../../sample slides`).
+
+## The storyboard
+
+One beat per block in `demo.mjs`, runnable alone with `--beats=`:
+
+| beat | what it shows |
+| --- | --- |
+| `drop1` | one deck drifts in from off-frame, the drop zone lights up, a row appears with thumbnail, page count and size |
+| `drop3` | three more arrive as a stack with a count badge — PDF, PowerPoint and Keynote together |
+| `reorder` | the PowerPoint is dragged from third to second, so the list reads paper, discussion, paper, discussion |
+| `rename` | one click into the first title, then **Tab** along the row — the app moves focus and selects the next title itself — retitling all four to Paper A / Discussion A / Paper B / Discussion B, original filenames still visible underneath |
+| `pdf` | **Open in browser** on a PDF. The **?** shortcut card first, over the cover slide, naming the keys the rest of the beat then uses; arrow keys page by page to slide 5; its link out to the regression table on 15 and the link back; another arrow; then two jumps through the **G** picker. The pointer is parked against the right edge and hidden while slides are up — visible only for the link clicks, which are the point — and reaches the picker down the edge and in along the strip so it never crosses a slide |
+| `pptx` | the same presenter on a PowerPoint, briefly — the controls are identical |
+| `zip` | the session ZIP renamed to "Corporate finance 11am" and downloaded |
+
+## How it works
+
+- `driver.mjs` — launches Chrome, attaches over CDP, exposes trusted input
+  (`Input.dispatch*`, so `requestFullscreen` and downloads work), and the
+  `Recorder` that writes JPEG frames with their real timestamps for ffmpeg.
+- `harness.js` — injected into each page via `Runtime.evaluate`. Draws the macOS
+  pointer and the drag ghosts, fetches the decks as `File` objects, and
+  synthesises the `dragenter`/`dragover`/`drop`. This is the only simulated part,
+  and it is what lets files arrive from off-frame with no file picker. Everything
+  the app does in response is real.
+- `demo.mjs` — the beat list above.
+
+## Things already learned the hard way
+
+- **The emulated viewport must equal the real window's content box.** If it does
+  not, Chrome scales the page to fit, the window visibly flickers, and injected
+  input is rescaled by the same factor, so clicks and drags land off target. An
+  override that is merely *smaller* than the window is no good either: the
+  presenter popup does not inherit it, lays out at the window's full height, and
+  the capture clip then cuts the foot off every slide and most of the picker.
+- **Force the window to 16:9 rather than emulating a 16:9 box inside it.** Chrome
+  ignores `--window-size`, and a **maximized** window ignores bounds changes
+  entirely — `windowState` cannot be combined with left/top/width/height, so clear
+  it in a call of its own first, then set the bounds. `fitToWindow()` does this,
+  measures the tab strip and toolbar, and lands a 1512x851 content box.
+- **Give every run its own Chrome profile.** Reusing one path lets a browser left
+  over from an earlier run hold it, and the delete fails with `ENOTEMPTY` before
+  the run starts — which looks exactly like a successful take, except the video on
+  disk is the previous one.
+- **Let the renderer finish before advancing.** Pressing the next-page key faster
+  than PDF.js paints puts blank white pages in the video.
+- **The slide picker scrolls itself** to centre the current slide, so a fixed
+  `nth-child` is usually outside the viewport: the click lands on nothing and the
+  jump silently does not happen, with the page counter the only clue. `jumpVia()`
+  reads the strip and chooses from the thumbnails actually on screen.
+- **Make the window width a multiple of 16.** 1504 gives a content box of exactly
+  1504x846, which scales to exactly 1920x1080, so ffmpeg does no resampling at
+  all. 1512 yields 1081 rows and a pointless rescale of every frame.
+- **Only follow internal PDF links.** An external one opens a tab mid-take.
+  `probe-links.mjs` prints the link map for the Barnes deck — page 5 goes out to
+  the regression table on 15, and 15 comes back to 5.
+- **Resume a newly attached target before any other command.** A target paused at
+  `waitForDebuggerOnStart` will not answer `Page.enable` either, so setting up
+  first just hangs on the first call with no error until the CDP timeout.
+- **The recorder must not set its own `setDeviceMetricsOverride`.** A second
+  session setting one makes Chrome rescale injected input mid-gesture: a mousedown
+  landed at 1.56x the aimed point while the mouseup landed correctly, so the click
+  resolved against a common ancestor and the link never opened.
+- **The recorder needs its own CDP socket**, or ~200 KB screenshot payloads queue
+  ahead of every input command.
+- **Always `await page.settle()` before aiming at anything.** Previews, slide
+  counts and sizes arrive asynchronously and move rows as they land.
+- `requestFullscreen` keeps the emulated viewport, so the capture size holds
+  steady across the full-screen transition.
+- `Page.addScriptToEvaluateOnNewDocument` is too late for an already-committed
+  document — create the target at `about:blank`, then navigate.
+- The site's CSP blocks injected `<style>` blocks, so the harness styles
+  everything through `style` attributes.
+
+## Why the demo never enters full screen
+
+The **Full screen** button stays visible in the presenter bar but is never clicked.
+With no browser chrome in frame the presenter already fills the picture, so
+entering full screen changes nothing a viewer can see — while `requestFullscreen`
+throws away a device-metrics override that is smaller than the window and resizes
+the viewport mid-take. That re-frames the capture and clips the slide picker off
+the bottom, and on the second presenter it made the request fail outright.
+
+Not entering full screen is what lets `fitToWindow()` emulate a 16:9 box *inside*
+the window, which is what makes the capture exactly 1920x1080 with nothing cropped
+away. If a take ever needs a real full-screen transition, record with browser
+chrome visible instead and accept the viewport change.
+
+## Still open
+
+- Capture runs about 23 fps and plays back at 30, so fast pointer moves are a
+  little steppy. Keep the motion slow, or trim in post.
+- No visible confirmation for the ZIP download: with no browser chrome in frame
+  there is no download shelf, so that beat ends on the finished list.
+- The shortcut card is only up for about 1.2s. Deliberate, but easy to lengthen.
+
+`tdiag.mjs`, `treorder.mjs`, `tclick.mjs`, `fitcheck.mjs` and `peek.mjs` are the
+isolation tests used to find the above; `peek.mjs` inspects a run still in flight.
