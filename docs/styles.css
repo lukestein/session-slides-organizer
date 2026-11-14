@@ -51,6 +51,14 @@ main {
 }
 h1, h2, p { margin: 0; }
 .intro { margin-bottom: 1rem; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+.caveat {
+  margin: 1.25rem 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.caveat b { font-weight: 700; }
+.open-pdf b { font-weight: 700; margin-left: .1em; }
 footer { padding-block: 1.35rem 2rem; color: var(--muted); font-size: .8rem; }
 footer a { color: var(--accent); text-underline-offset: .15em; }
 
@@ -271,4 +279,213 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   .order { padding-inline: .2rem; gap: .18rem; }
   .actions .button { padding-inline: .3rem; font-size: .75rem; }
   .file-details { flex-wrap: wrap; row-gap: .1rem; }
+}
+
+/* Presenter page (present.html) */
+.deck-body {
+  margin: 0;
+  background: #101014;
+  color: #f2f2f4;
+}
+
+.deck-page {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100dvh;
+  /* The strip parks below the foot, so clip rather than grow a scrollbar and
+     shove the slide around. Clip, not hidden: hidden still makes a scroll
+     container that script and focus can scroll, which moved the slide. */
+  overflow: clip;
+}
+
+.deck-bar {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  padding: .5rem .9rem;
+  background: #1b1b21;
+  border-bottom: 1px solid #2c2c34;
+}
+
+.deck-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: #b4b4bd;
+}
+
+.deck-button {
+  font: inherit;
+  color: inherit;
+  background: #2c2c34;
+  border: 1px solid #3c3c46;
+  border-radius: .4rem;
+  padding: .3rem .7rem;
+  cursor: pointer;
+}
+
+.deck-button:hover { background: #3a3a44; }
+
+.deck-stage {
+  display: grid;
+  place-items: center;
+  /* clip, not hidden, so nothing can scroll the slide out of place. */
+  overflow: clip;
+  padding: .5rem;
+}
+
+.deck-stage > * { max-width: 100%; max-height: 100%; }
+
+.deck-message {
+  color: #b4b4bd;
+  text-align: center;
+  padding: 2rem;
+  max-width: 32rem;
+}
+
+/* Click targets along each edge, invisible until focused. */
+.deck-edge {
+  position: absolute;
+  top: 3rem;
+  bottom: 0;
+  width: 12%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.deck-prev { left: 0; }
+.deck-next { right: 0; }
+.deck-edge:focus-visible { opacity: 1; background: rgba(255, 255, 255, .12); }
+
+/* In full screen the bar hides until the pointer reaches the top. */
+:fullscreen .deck-page { grid-template-rows: 1fr; }
+:fullscreen .deck-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity .15s;
+}
+:fullscreen .deck-bar:hover,
+:fullscreen .deck-bar:focus-within { opacity: 1; }
+:fullscreen .deck-edge { top: 0; }
+
+/* B and W blank the screen, as in PowerPoint. */
+.deck-blank {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #000;
+}
+.deck-blank[data-colour="white"] { background: #fff; }
+
+/* Slide picker: a strip of thumbnails along the bottom. */
+.deck-picker {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  transform: translateY(100%);
+  visibility: hidden;
+  transition: transform .2s ease-out, visibility 0s linear .2s;
+  display: flex;
+  gap: .5rem;
+  padding: .6rem;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  background: rgba(16, 16, 20, .94);
+  border-top: 1px solid #2c2c34;
+}
+
+.deck-picker.open {
+  transform: none;
+  visibility: visible;
+  transition: transform .2s ease-out, visibility 0s;
+}
+
+.deck-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 9rem;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 2px solid #3c3c46;
+  border-radius: .25rem;
+  cursor: pointer;
+}
+
+.deck-thumb.current { border-color: #f2f2f4; }
+.deck-thumb:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
+.deck-thumb svg { display: block; width: 100%; height: 100%; }
+
+.deck-thumb-number {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: .05rem .3rem;
+  font-size: .7rem;
+  color: #f2f2f4;
+  background: rgba(16, 16, 20, .75);
+  border-radius: 0 .25rem 0 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .deck-picker { scroll-behavior: smooth; }
+}
+
+/* Keyboard guide, raised with ? or / */
+.deck-help {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 16, 20, .72);
+  backdrop-filter: blur(3px);
+}
+
+.deck-help-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .55rem 1.1rem;
+  align-items: center;
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  max-width: min(32rem, 100%);
+  font-size: .9rem;
+  background: #1b1b21;
+  border: 1px solid #3c3c46;
+  border-radius: .6rem;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, .45);
+}
+
+.deck-help-list dt { display: flex; gap: .3rem; justify-self: end; }
+.deck-help-list dd { margin: 0; color: #c9c9d2; }
+
+.deck-help kbd {
+  font: inherit;
+  font-size: .78rem;
+  padding: .1rem .4rem;
+  color: #f2f2f4;
+  background: #2c2c34;
+  border: 1px solid #4a4a56;
+  border-bottom-width: 2px;
+  border-radius: .3rem;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-picker, .deck-picker.open { transition: none; }
 }

@@ -68,10 +68,22 @@ async function packagePreview(file, extension, reportCount) {
   return new Blob([entries[entry]], { type: `image/${format}` });
 }
 
+// The 1997–2003 binary formats are OLE containers, not ZIPs, so there is no
+// embedded thumbnail to lift out. Render their first slide instead. This pulls
+// in the deck renderer, so it runs only for the files that need it.
+async function legacyPreview(file, reportCount) {
+  const core = await import("./vendor/webppt/core/core.js");
+  const presentation = await core.parse(await file.arrayBuffer());
+  reportCount(presentation.slides.length, "slide");
+  const [first] = presentation.slides;
+  return first ? await core.slideToPng(presentation, first, 0.3) : null;
+}
+
 export function makePreview(file, fileUrl, extension, reportCount) {
   if (extension === "pdf") return pdfPreview(fileUrl, reportCount);
   if (["pptx", "pptm", "ppsx", "ppsm", "key"].includes(extension)) {
     return packagePreview(file, extension, reportCount);
   }
+  if (["ppt", "pps"].includes(extension)) return legacyPreview(file, reportCount);
   return null;
 }

@@ -1,5 +1,6 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
+import { canPresent, presentUrl } from "./deck-viewer.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -24,6 +25,7 @@ const exportButton = document.querySelector("#export");
 const archive = document.querySelector("#session-archive");
 const zipDetails = document.querySelector("#zip-details");
 const zipName = document.querySelector("#zip-name");
+const deckCaveat = document.querySelector("#deck-caveat");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -91,6 +93,7 @@ function updateArchive() {
 
 function updateList() {
   list.hidden = slides.length === 0;
+  deckCaveat.hidden = !slides.some(slide => slide.presentable);
   updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
@@ -172,7 +175,7 @@ function makeRow(file, extension) {
   const url = URL.createObjectURL(source);
   const defaultTitle = (file.name.slice(0, -(extension.length + 1)).trim() || file.name).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
-  const slide = { row, file, title, url, position, download, extension, defaultTitle, metadata, friendlyName: defaultTitle };
+  const slide = { row, file, title, url, position, download, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
@@ -187,8 +190,20 @@ function makeRow(file, extension) {
   openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
   download.setAttribute("aria-label", `Download ${file.name}`);
 
-  openPdf.hidden = !isPdf;
-  if (isPdf) openPdf.href = `${url}#view=Fit`;
+  const { presentable } = slide;
+  openPdf.hidden = !isPdf && !presentable;
+  if (isPdf) {
+    openPdf.href = `${url}#view=Fit`;
+  } else if (presentable) {
+    // The asterisk points at the rendering caveat above the list.
+    openPdf.append(Object.assign(document.createElement("b"), {
+      textContent: "*", ariaHidden: "true",
+    }));
+    // A blob URL would only download the deck, so hand it to the presenter page.
+    openPdf.href = presentUrl(url, defaultTitle);
+    openPdf.setAttribute("aria-label",
+      `Open in browser: ${file.name}. May not match PowerPoint exactly.`);
+  }
   download.href = url;
   download.draggable = false;
 
@@ -196,6 +211,7 @@ function makeRow(file, extension) {
     slide.friendlyName = title.value.trim() || defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
+    if (presentable) openPdf.href = presentUrl(url, slide.friendlyName);
     updateArchive();
   });
   title.addEventListener("blur", () => {

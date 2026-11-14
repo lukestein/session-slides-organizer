@@ -51,8 +51,130 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 
 - [x] Add one-click ZIP export with decks numbered and named in session order.
 - [ ] Test the PairDrop handoff on the classroom computer. **Receive with PairDrop** creates a temporary room in a separate tab. Set the classroom browser’s display name in PairDrop to **Presentation Computer** so presenters know which device to select. PairDrop saves the name in that browser profile. Have presenters join with the QR code or room code and send one deck at a time. Accept it in PairDrop, then return to the organizer and click **Import received files** or drop the downloaded deck into the list. The picker starts in Downloads where supported.
-- [ ] Explore opening PowerPoint and Keynote decks in a browser tab. Check local rendering, fidelity, and whether available tools require uploading the deck.
+- [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting decks in the browser** below. PowerPoint works locally; Keynote does not.
+- [ ] Decide whether to keep the in-browser deck presenter, given the bundle size, the relaxed style CSP, and the age of the renderer.
 - [ ] Explore a PDF presentation view with one page at a time and a fullscreen control.
+
+## Presenting decks in the browser
+
+**Open in browser\*** now appears on PowerPoint rows as well as PDFs, and opens the deck in a new
+tab, as a PDF does — so the deck can go to the projector while the list stays on the laptop.
+Parsing and rendering happen on this computer and the deck is never uploaded.
+
+### Presenter controls
+
+| Key | Does |
+| --- | --- |
+| → ↓ Space Page Down | Next slide, or the next click-by-click build |
+| ← ↑ Page Up | Previous |
+| Home / End | First / last slide |
+| **B** / **W** | Blank the screen black or white, as in PowerPoint |
+| **G** | Show all slides as thumbnails along the bottom; click one to jump |
+| **?** or **/** | Show the keyboard guide |
+| **Esc** | Close the guide or the slide picker |
+
+Coming back from a blank screen returns to the slide that was up rather than moving on from it,
+so a key pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
+slide also lifts the picker into view, and it withdraws when the pointer leaves; opening it with
+**G** or the **Slides** button keeps it up until it is closed.
+
+Both the arrow pairs and the Page keys move, which covers the usual presentation clickers. The
+**Slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own
+full screen; in full screen the bar hides until the pointer reaches the top.
+
+Thumbnails render only as they scroll into view, so a long deck does not pay for every slide when
+the picker opens. All of this lives in `docs/present.mjs` and calls only the renderer's public
+API, so the vendored copy stays untouched and upstream updates drop straight in.
+
+The deck reaches `docs/present.html` as a blob URL in the query string, the same handoff the PDF
+rows already use. That page reads the file into memory before rendering, so closing the organizer
+tab or removing the row cannot interrupt a talk in progress.
+
+Rendering uses [web-ppt](https://github.com/unStone/web-ppt) (MIT), vendored under
+`docs/vendor/webppt/`. Its only runtime dependency is fflate, which the site already bundles.
+
+### What works
+
+- `.pptx`, `.pptm`, `.ppsx`, `.ppsm` and the 1997–2003 binary `.ppt` and `.pps`.
+- Text, bullets, theme fonts and colors, tables, pictures, native PowerPoint charts, and
+  click-by-click entrance animations.
+- Thumbnails and slide counts for the binary formats too. They are OLE containers rather than
+  ZIPs, so there is no embedded thumbnail to lift out and `docs/previews.mjs` renders their first
+  slide instead — which loads the deck renderer, but only for a file that needs it.
+
+### What does not
+
+- **Keynote cannot be rendered.** A `.key` file keeps its slides in Apple's undocumented IWA
+  format (Snappy-compressed protobuf whose schema changes between Keynote releases), and no
+  JavaScript parser exists. The package carries only a slide-1 `preview.jpg` plus a cache of
+  356x200 navigator thumbnails that is often incomplete and has no reliable slide order, so it
+  cannot stand in for a render. Keynote rows keep the preview, the download, and the ZIP.
+  Some `.key` files are also package *directories* rather than single files; those cannot be
+  added to the list at all.
+- Fidelity is close but not exact. Autofit text can wrap differently from PowerPoint, and
+  picture placeholders may pick up a border PowerPoint does not draw. Decks that rely on fonts
+  the room computer lacks will substitute, as they would in PowerPoint.
+
+Entrance animations and click-by-click builds do play, so a deck that reveals bullets on click
+behaves as the presenter expects. The list on the page says only that decks "may not match
+PowerPoint exactly", because the differences are easier to show than to enumerate.
+
+### Trade-offs to weigh before keeping this
+
+- `docs/vendor/webppt/` adds about 1.1 MB to the repository, loaded only when a deck is opened.
+- Two CSP exceptions in `docs/index.html`. `style-src-attr 'unsafe-inline'`, because the renderer
+  positions every shape with an inline `style` attribute; this is the narrowest form that works,
+  so injected `<style>` blocks and external stylesheets stay blocked. And `data:` in `img-src`,
+  because the rasterizer behind the binary-format thumbnails draws through a `data:` SVG URL.
+  Both are image and style concessions only — `script-src 'self'` is untouched.
+- web-ppt is young and has few users. It is the real risk here, not the CSP line: it is 1.1 MB of
+  third-party code that parses decks handed over by presenters. Review it before trusting it on a
+  conference machine, and re-check on each update. Vendored files carry no manifest, so
+  Dependabot will not warn about them.
+- Full screen works; it was confirmed by hand on macOS, because the embedded browser used during
+  development refuses the Fullscreen API. If some browser refuses it, the button falls back to
+  naming that browser's own full-screen shortcut, and the presenter page fills its tab either
+  way. Worth one check on the classroom computer along with the PairDrop handoff.
+
+### Update the bundled renderer
+
+web-ppt ships bare specifiers that browsers cannot resolve without an import map, and an inline
+import map would need another CSP exception. Vendoring rewrites them to relative paths instead.
+From the repository root:
+
+```sh
+(
+  set -eu
+  webppt_version=0.8.0
+  staging="$(mktemp -d)"
+  trap 'rm -rf "$staging"' EXIT
+  npm pack --pack-destination "$staging" "@web-ppt/core@$webppt_version"
+  npm pack --pack-destination "$staging" "@web-ppt/viewer-core@$webppt_version"
+  mkdir -p "$staging/core" "$staging/viewer"
+  tar -xzf "$staging/web-ppt-core-$webppt_version.tgz" -C "$staging/core" --strip-components 1
+  tar -xzf "$staging/web-ppt-viewer-core-$webppt_version.tgz" -C "$staging/viewer" --strip-components 1
+
+  rm -rf docs/vendor/webppt
+  mkdir -p docs/vendor/webppt/core docs/vendor/webppt/viewer
+  cp "$staging"/core/dist/*.js docs/vendor/webppt/core/
+  cp "$staging"/viewer/dist/*.js docs/vendor/webppt/viewer/
+  cp "$staging/core/LICENSE" docs/vendor/webppt/LICENSE
+
+  sed -i '' \
+    -e 's|"@web-ppt/core/chart-ex"|"./chart-ex.js"|g' \
+    -e 's|"@web-ppt/core/emf-plus"|"./emf-plus.js"|g' \
+    -e 's|"@web-ppt/core/three-d"|"./three-d.js"|g' \
+    -e 's|"@web-ppt/core/zip"|"./zip.js"|g' \
+    -e 's|"@web-ppt/core"|"./core.js"|g' \
+    -e 's|"fflate"|"../../fflate/esm/browser.js"|g' docs/vendor/webppt/core/*.js
+  sed -i '' -e 's|"@web-ppt/core"|"../core/core.js"|g' docs/vendor/webppt/viewer/*.js
+
+  grep -r '"@web-ppt/\|"fflate"' docs/vendor/webppt/ && echo "UNRESOLVED SPECIFIERS" || echo "specifiers rewritten"
+)
+```
+
+Keep `@web-ppt/core` and `@web-ppt/viewer-core` on the same version. Test a `.pptx` with charts
+and pictures, a legacy `.ppt`, and confirm the browser console reports no CSP violations.
 
 ## Publish with GitHub Pages
 
