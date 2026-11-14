@@ -54,6 +54,21 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 - [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting in the browser** below. PowerPoint works locally; Keynote does not.
 - [ ] Decide whether to keep the in-browser presenter, given the bundle size, the CSP exceptions, and the age of the deck renderer. The PDF side rests on PDF.js, which the site already bundled.
 - [x] Explore a PDF presentation view with one page at a time and a fullscreen control. PDFs now use the same presenter as decks, with their links intact.
+- [ ] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
+  on a fresh machine or in a new tab. The open question is what that page should be. Carrying the
+  whole site would add about 7 MB to every ZIP, almost all of it `docs/vendor/`, and a page opened
+  from `file://` cannot load ES modules in Chrome, so the app would not run from the extracted
+  folder regardless. A small manifest of the running order and the edited titles, which the
+  organizer offers to import alongside the files, sidesteps both and restores more than the
+  numbered filenames already do.
+- [ ] Consider a **Next talk** button in the presenter, in the top bar where the full-screen chrome
+  hides it, moving to the next presentation in the session in the same tab and skipping anything
+  the browser cannot render. The presenter is deliberately self-contained today: it reads the file
+  into memory up front so that closing the organizer tab cannot interrupt a talk. Reaching the
+  next file means asking the organizer tab for it at the moment of the click — through
+  `window.opener` or a `BroadcastChannel`, rather than a URL baked in when the presenter opened,
+  which would go stale as soon as the running order changed. So the button needs a sensible
+  disabled state for when that tab has gone.
 
 ## Presenting in the browser
 
