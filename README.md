@@ -103,10 +103,10 @@ PowerPoint exactly", because the differences are easier to show than to enumerat
   third-party code that parses decks handed over by presenters. Review it before trusting it on a
   conference machine, and re-check on each update. Vendored files carry no manifest, so
   Dependabot will not warn about them.
-- Full screen through the browser's Fullscreen API is **untested on a real browser** — it was
-  refused by the embedded browser used during development. The button falls back to naming the
-  browser's own full-screen shortcut, and the presenter page already fills its tab, so the
-  browser's own full screen works either way. Confirm this on the classroom computer.
+- Full screen works; it was confirmed by hand on macOS, because the embedded browser used during
+  development refuses the Fullscreen API. If some browser refuses it, the button falls back to
+  naming that browser's own full-screen shortcut, and the presenter page fills its tab either
+  way. Worth one check on the classroom computer along with the PairDrop handoff.
 
 ### Update the bundled renderer
 
