@@ -3,6 +3,19 @@
 // be dropped in to restore a session.
 export const manifestName = "session.md";
 
+// Printed in the manifest so whoever opens the ZIP can find the tool. It is
+// the published site rather than wherever this copy happens to be running,
+// since the file is made to be passed on.
+export const siteUrl = "https://lukestein.com/session-slides-organizer/";
+
+// The export always writes `session.md`, but the file is meant to be handled,
+// and renaming it is the obvious thing to do with a file named after nothing
+// in particular. Any Markdown file is worth reading as a running order; one
+// that turns out not to be is rejected by the caller, which parses it first.
+export function isManifestName(filename) {
+  return /[.](?:md|markdown)$/i.test(filename.trim());
+}
+
 // "1. **Opening paper** — `1. Opening paper.pptx`". The title may be bold or
 // plain, the dash may be any of the three, and a line carrying only a filename
 // still counts, so a hand-edited file is unlikely to be rejected.
@@ -22,8 +35,10 @@ export function buildManifest(sessionName, entries) {
   const lines = [
     `# ${sessionName}`,
     "",
-    "Open these files in the Session Slides Organizer, or drag the whole ZIP in,",
-    "to restore this running order.",
+    "Import these files to the Session Slides Organizer to restore this running",
+    "order. Drag in the whole ZIP, or the files it holds along with this one.",
+    "",
+    siteUrl,
     "",
     "Reordering the list below, or rewriting a title, changes what the import does.",
     "",

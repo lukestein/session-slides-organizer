@@ -223,8 +223,10 @@ to be read:
 ```markdown
 # SFS Cavalcade session
 
-Open these files in the Session Slides Organizer, or drag the whole ZIP in,
-to restore this running order.
+Import these files to the Session Slides Organizer to restore this running
+order. Drag in the whole ZIP, or the files it holds along with this one.
+
+https://lukestein.com/session-slides-organizer/
 
 Reordering the list below, or rewriting a title, changes what the import does.
 
@@ -242,9 +244,21 @@ back in that order; rewrite a title and the new one is used. Anything in the ZIP
 not mention is still added, after the talks it does, so a file is never silently dropped; anything
 the manifest names but the ZIP lacks is reported.
 
-A ZIP without a manifest still works — the decks come in sorted by filename, which is why the
-export numbers them. Dropping one onto a list that already has talks adds to the end, so two
-sessions can be combined, and a drop can mix an archive with loose files.
+The ZIP does not have to stay a ZIP. Unpack it and drag the files in — `session.md` among them —
+and the running order is applied just the same, whatever order the desktop hands them over in.
+The importer reads any Markdown file dropped with the slides as a candidate running order, so
+renaming `session.md` to something meaningful does not break it; a Markdown file that holds no
+running order is rejected like any other file that is not a deck.
+
+Without a manifest, files that all carry a positional prefix are still treated as a session: they
+are put in numerical order and the prefixes come off, since that is what the export leaves behind.
+Numbers are compared as numbers, so a session runs past nine talks without `10.` sorting before
+`2.`. Files that are not numbered that way keep the order they were dropped in, under their own
+names.
+
+Dropping onto a list that already has talks adds to the end, so two sessions can be combined, and
+a drop can mix an archive with loose files. Loose files stay together as one group, at the place
+the first of them landed, because a running order applies to all of them at once.
 
 A file already in the session is not added a second time. Names cannot settle this — the export
 renames decks as it numbers them, and a title someone edited travels in the manifest — so the

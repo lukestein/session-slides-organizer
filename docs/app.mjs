@@ -1,6 +1,7 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
-import { readSessionZip } from "./session-import.mjs";
+import { readLooseSession, readSessionZip } from "./session-import.mjs";
+import { isManifestName, parseManifest } from "./session-manifest.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
 import { findDuplicate } from "./file-identity.mjs";
 
@@ -353,20 +354,39 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
   return added;
 }
 
-// A dropped ZIP is unpacked in place, so a drop mixing an archive with loose
-// files keeps the order they arrived in.
+// A dropped ZIP is unpacked where it was dropped, so a drop mixing an archive
+// with loose files keeps the order they arrived in. The loose files are one
+// group, held together wherever the first of them landed, because a running
+// order can only be applied to all of them at once.
 async function addFiles(files) {
   const rejected = [];
   const problems = [];
-  const entries = [];
+  const groups = [];
+  const loose = [];
   const unaccounted = [];
-  let restored = 0;
+  let looseGroup = -1;
+  let manifestText = "";
+  let restored = false;
   let sessionName = "";
   const startedEmpty = slides.length === 0;
 
   for (const file of files) {
+    // A running order dragged in beside its decks, rather than inside a ZIP.
+    // Anything else ending in .md is not one, and falls through to be rejected
+    // like any other file that is not a deck.
+    if (isManifestName(file.name) && !manifestText) {
+      const text = await file.text();
+      if (parseManifest(text).order.length) {
+        manifestText = text;
+        continue;
+      }
+    }
     if (!/[.]zip$/i.test(file.name)) {
-      entries.push({ file, title: "" });
+      if (looseGroup < 0) {
+        looseGroup = groups.length;
+        groups.push([]);
+      }
+      loose.push({ name: file.name, file });
       continue;
     }
     try {
@@ -375,26 +395,38 @@ async function addFiles(files) {
         problems.push(`${file.name} held no slides. A session ZIP needs at least one PDF, PowerPoint, or Keynote file.`);
         continue;
       }
-      entries.push(...session.entries);
+      groups.push(session.entries);
       unaccounted.push(...session.missing);
-      restored += session.entries.length;
+      restored = true;
       sessionName ||= session.sessionName;
     } catch {
       problems.push(`Couldn’t read ${file.name}. It may not be a ZIP, or it may be damaged.`);
     }
   }
 
+  if (loose.length) {
+    const session = readLooseSession(manifestText, loose, supported);
+    groups[looseGroup] = session.entries;
+    unaccounted.push(...session.missing);
+    restored ||= session.ordered;
+    sessionName ||= session.sessionName;
+  } else if (manifestText) {
+    problems.push("A running order on its own has no slides. Drag in the files beside it, or the whole session ZIP.");
+  }
+
+  const entries = groups.flat();
+
   // A hand-edited manifest can name a file that is not in the ZIP. Say so,
   // rather than leaving someone to notice a talk is missing.
   if (unaccounted.length) {
-    problems.push(`Named in the running order but not in the ZIP: ${unaccounted.join(", ")}.`);
+    problems.push(`Named in the running order but not found: ${unaccounted.join(", ")}.`);
   }
 
   // Not a count: a repeat already in the list is skipped, so the number of
-  // files the ZIP carried is not the number that joined the session.
+  // files that arrived is not the number that joined the session.
   const note = restored ? " Session order restored." : "";
   const added = await addEntries(entries, { rejected, problems, note });
-  // Only name the session after the ZIP when there was nothing to overwrite.
+  // Only take the session's name when there was nothing to overwrite.
   if (added && startedEmpty && sessionName) {
     zipName.value = sessionName;
     exportButton.setAttribute("aria-label", `Download ${zipName.value}.zip`);
