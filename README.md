@@ -4,7 +4,8 @@ A browser-based organizer for conference sessions. Drop in PDFs, PowerPoint deck
 
 - **Open in browser** presents PDFs and PowerPoint decks alike, in a new tab, one slide at a time. PDF links stay clickable, and **Open original** in the presenter hands the file to the browser's own PDF viewer for search and printing.
 - **Downloads** use the current position, title, and original extension, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the download uses the original filename after the position.
-- **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order.
+- **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order. A `session.md` goes in alongside them, listing the running order in plain Markdown.
+- **Dropping a session ZIP back in** restores that running order, titles and all, and adds it to the end of whatever is already listed. See **Reopening a session** below.
 - **Previews and file details** include the first page of a PDF or an embedded deck preview when available. All files show their size. PDFs and modern PowerPoint decks show their page or slide count when readable.
 - **Reordering** works by dragging a row. On a touch screen use the handle. With a keyboard, focus the handle and press the up or down arrow key.
 
@@ -54,13 +55,11 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 - [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting in the browser** below. PowerPoint works locally; Keynote does not.
 - [ ] Decide whether to keep the in-browser presenter, given the bundle size, the CSP exceptions, and the age of the deck renderer. The PDF side rests on PDF.js, which the site already bundled.
 - [x] Explore a PDF presentation view with one page at a time and a fullscreen control. PDFs now use the same presenter as decks, with their links intact.
-- [ ] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
-  on a fresh machine or in a new tab. The open question is what that page should be. Carrying the
-  whole site would add about 7 MB to every ZIP, almost all of it `docs/vendor/`, and a page opened
-  from `file://` cannot load ES modules in Chrome, so the app would not run from the extracted
-  folder regardless. A small manifest of the running order and the edited titles, which the
-  organizer offers to import alongside the files, sidesteps both and restores more than the
-  numbered filenames already do.
+- [x] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
+  on a fresh machine or in a new tab. Done as a `session.md` manifest rather than a page: carrying
+  the whole site would have added about 7 MB to every ZIP, and a page opened from `file://` cannot
+  load ES modules in Chrome, so it would not have run from the extracted folder anyway. See
+  **Reopening a session** below.
 - [ ] Consider a **Next talk** button in the presenter, in the top bar where the full-screen chrome
   hides it, moving to the next presentation in the session in the same tab and skipping anything
   the browser cannot render. The presenter is deliberately self-contained today: it reads the file
@@ -215,6 +214,37 @@ From the repository root:
 
 Keep `@web-ppt/core` and `@web-ppt/viewer-core` on the same version. Test a `.pptx` with charts
 and pictures, a legacy `.ppt`, and confirm the browser console reports no CSP violations.
+
+## Reopening a session
+
+Every session ZIP carries a `session.md` beside the decks — the running order, in Markdown, meant
+to be read:
+
+```markdown
+# SFS Cavalcade session
+
+Open these files in the Session Slides Organizer, or drag the whole ZIP in,
+to restore this running order.
+
+Reordering the list below, or rewriting a title, changes what the import does.
+
+1. **Opening paper** — `1. Opening paper.pptx`
+2. **Discussion of Hamdi et al** — `2. Discussion of Hamdi et al.pdf`
+3. **Perceived skin tone** — `3. Perceived skin tone.key`
+```
+
+Dropping that ZIP back in rebuilds the session: the order and the edited titles return, the
+heading becomes the ZIP's name again when the list started empty, and the positional `1. ` prefixes
+come off the filenames, since position is the list's job and is reapplied on the way out.
+
+The manifest is the running order, not a record of one. Reorder its lines and the session comes
+back in that order; rewrite a title and the new one is used. Anything in the ZIP the manifest does
+not mention is still added, after the talks it does, so a file is never silently dropped; anything
+the manifest names but the ZIP lacks is reported.
+
+A ZIP without a manifest still works — the decks come in sorted by filename, which is why the
+export numbers them. Dropping one onto a list that already has talks adds to the end, so two
+sessions can be combined, and a drop can mix an archive with loose files.
 
 ## Publish with GitHub Pages
 

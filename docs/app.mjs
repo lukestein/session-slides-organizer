@@ -1,5 +1,6 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
+import { readSessionZip } from "./session-import.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
 
 const formats = {
@@ -79,6 +80,7 @@ function sessionFiles() {
   return slides.map((slide, index) => ({
     file: slide.file,
     name: downloadName(slide, index, width),
+    title: slide.friendlyName,
   }));
 }
 
@@ -90,7 +92,7 @@ function updateArchive() {
   const count = slides.length;
   archive.hidden = count === 0;
   if (count) {
-    const size = formatSize(sessionZipSize(sessionFiles()));
+    const size = formatSize(sessionZipSize(archiveStem(), sessionFiles()));
     zipDetails.textContent = `${count} ${count === 1 ? "file" : "files"} (${size})`;
   }
 }
@@ -163,7 +165,7 @@ function queuePreview(slide, extension) {
   });
 }
 
-function makeRow(file, extension) {
+function makeRow(file, extension, presetTitle) {
   const row = template.content.firstElementChild.cloneNode(true);
   const title = row.querySelector(".title");
   const handle = row.querySelector(".order");
@@ -177,7 +179,8 @@ function makeRow(file, extension) {
     ? file.slice(0, file.size, "application/pdf")
     : file;
   const url = URL.createObjectURL(source);
-  const defaultTitle = (file.name.slice(0, -(extension.length + 1)).trim() || file.name).slice(0, title.maxLength);
+  const fromFilename = file.name.slice(0, -(extension.length + 1)).trim() || file.name;
+  const defaultTitle = (presetTitle?.trim() || fromFilename).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
   const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
 
@@ -266,25 +269,82 @@ function makeRow(file, extension) {
   return slide;
 }
 
-function addFiles(files) {
-  const rejected = [];
+function supported(extension) {
+  return Object.hasOwn(formats, extension);
+}
+
+// Entries are { file, title }; a title of its own is what a session ZIP brings
+// back, and everything else leaves it empty and takes the filename.
+function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
   let added = 0;
-  for (const file of files) {
+  for (const { file, title } of entries) {
     const extension = /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase();
-    if (!Object.hasOwn(formats, extension) || file.size === 0) {
+    if (!supported(extension) || file.size === 0) {
       rejected.push(file.name);
       continue;
     }
-    const slide = makeRow(file, extension);
+    const slide = makeRow(file, extension, title);
     slides.push(slide);
     list.append(slide.row);
     queuePreview(slide, extension);
     added++;
   }
   updateList();
-  error.hidden = rejected.length === 0;
-  error.textContent = rejected.length ? `Couldn’t add ${rejected.join(", ")}. Choose a PDF, PowerPoint, or Keynote file.` : "";
-  if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.`);
+  const messages = [...problems];
+  if (rejected.length) {
+    messages.push(`Couldn’t add ${rejected.join(", ")}. Choose a PDF, PowerPoint, or Keynote file.`);
+  }
+  error.hidden = messages.length === 0;
+  error.textContent = messages.join(" ");
+  if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.${note}`);
+  return added;
+}
+
+// A dropped ZIP is unpacked in place, so a drop mixing an archive with loose
+// files keeps the order they arrived in.
+async function addFiles(files) {
+  const rejected = [];
+  const problems = [];
+  const entries = [];
+  const unaccounted = [];
+  let restored = 0;
+  let sessionName = "";
+  const startedEmpty = slides.length === 0;
+
+  for (const file of files) {
+    if (!/[.]zip$/i.test(file.name)) {
+      entries.push({ file, title: "" });
+      continue;
+    }
+    try {
+      const session = await readSessionZip(file, supported);
+      if (!session.entries.length) {
+        problems.push(`${file.name} held no slides. A session ZIP needs at least one PDF, PowerPoint, or Keynote file.`);
+        continue;
+      }
+      entries.push(...session.entries);
+      unaccounted.push(...session.missing);
+      restored += session.entries.length;
+      sessionName ||= session.sessionName;
+    } catch {
+      problems.push(`Couldn’t read ${file.name}. It may not be a ZIP, or it may be damaged.`);
+    }
+  }
+
+  // A hand-edited manifest can name a file that is not in the ZIP. Say so,
+  // rather than leaving someone to notice a talk is missing.
+  if (unaccounted.length) {
+    problems.push(`Named in the running order but not in the ZIP: ${unaccounted.join(", ")}.`);
+  }
+
+  const note = restored ? ` Session order restored from ${restored} file${restored === 1 ? "" : "s"}.` : "";
+  const added = addEntries(entries, { rejected, problems, note });
+  // Only name the session after the ZIP when there was nothing to overwrite.
+  if (added && startedEmpty && sessionName) {
+    zipName.value = sessionName;
+    exportButton.setAttribute("aria-label", `Download ${zipName.value}.zip`);
+  }
+  return added;
 }
 
 function followPointer(y) {
@@ -386,9 +446,10 @@ importDownloads.addEventListener("click", async () => {
       startIn: "downloads",
       multiple: true,
       types: [{
-        description: "Presentation files",
+        description: "Presentations and session ZIPs",
         accept: {
           "application/pdf": [".pdf"],
+          "application/zip": [".zip"],
           "application/octet-stream": Object.keys(formats).filter(extension => extension !== "pdf")
             .map(extension => `.${extension}`),
         },
@@ -429,7 +490,7 @@ exportButton.addEventListener("click", async () => {
   announce("Preparing session ZIP.");
   error.hidden = true;
   try {
-    const url = URL.createObjectURL(await buildSessionZip(files));
+    const url = URL.createObjectURL(await buildSessionZip(archiveStem(), files));
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;

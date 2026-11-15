@@ -1,16 +1,25 @@
+import { buildManifest, manifestName } from "./session-manifest.mjs";
+
 const encoder = new TextEncoder();
 
-export function sessionZipSize(files) {
+function entryCost(name, size) {
   // Stored ZIP entries have 92 bytes of overhead plus two copies of the name.
-  return files.reduce((total, { file, name }) => (
-    total + file.size + 92 + 2 * encoder.encode(name).length
-  ), 22);
+  return size + 92 + 2 * encoder.encode(name).length;
 }
 
-export async function buildSessionZip(files) {
+function manifestBytes(sessionName, files) {
+  return encoder.encode(buildManifest(sessionName, files));
+}
+
+export function sessionZipSize(sessionName, files) {
+  const slides = files.reduce((total, { file, name }) => total + entryCost(name, file.size), 22);
+  return slides + entryCost(manifestName, manifestBytes(sessionName, files).length);
+}
+
+export async function buildSessionZip(sessionName, files) {
   const maxZipSize = 0xffffffff;
-  const size = sessionZipSize(files);
-  if (size >= maxZipSize || files.length >= 0xffff) {
+  const size = sessionZipSize(sessionName, files);
+  if (size >= maxZipSize || files.length + 1 >= 0xffff) {
     throw new RangeError("The session exceeds the ZIP format limits.");
   }
 
@@ -21,6 +30,12 @@ export async function buildSessionZip(files) {
     parts.push(chunk);
   });
   try {
+    // The running order goes in first, so it is what an extracted folder or a
+    // ZIP listing shows at the top.
+    const manifest = new ZipPassThrough(manifestName);
+    zip.add(manifest);
+    manifest.push(manifestBytes(sessionName, files), true);
+
     for (const { file, name } of files) {
       const entry = new ZipPassThrough(name);
       zip.add(entry);
