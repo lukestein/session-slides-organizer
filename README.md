@@ -254,6 +254,14 @@ which talks were already there. Sizes are compared first, so the hash only runs 
 could actually be the same. Remove a talk and it can be added again; the comparison is against
 the list as it stands, not a history of it.
 
+That leaves the names to settle, since the repeat and the talk already listed may be called
+different things. A name someone chose beats one taken from a filename: a paper sitting in the
+list under `rd174_don_2026_lehigh.pdf` takes the name the archive has for it. When both sides
+have a chosen name, the one in the list wins — it is on screen and being edited, and an import
+should not overwrite a title just typed — and the archive's name is reported rather than dropped
+silently. The adopted name behaves as a typed one: it names the file on the next export, and
+clearing the field still falls back to the filename.
+
 ## Publish with GitHub Pages
 
 Push `main` to a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, then choose **main** and **/docs** and save. GitHub will display the published URL. All asset paths are relative so the same files work under a project URL such as `https://OWNER.github.io/session-slides-organizer/`.

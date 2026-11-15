@@ -140,6 +140,16 @@ function setMetadata(slide, count, unit) {
   slide.metadata.textContent = `(${quantity}${size})`;
 }
 
+// Gives a row a name it did not have, exactly as typing one would: the
+// filename stem stays the fallback, so clearing the field still returns to it,
+// and the next export names the file after the new title.
+function renameSlide(slide, name) {
+  slide.friendlyName = name.slice(0, slide.title.maxLength);
+  slide.named = true;
+  slide.title.value = slide.friendlyName;
+  slide.title.defaultValue = slide.friendlyName;
+}
+
 function removeSlide(slide) {
   const index = slides.indexOf(slide);
   slides.splice(index, 1);
@@ -184,7 +194,9 @@ function makeRow(file, extension, presetTitle) {
   const fromFilename = file.name.slice(0, -(extension.length + 1)).trim() || file.name;
   const defaultTitle = (presetTitle?.trim() || fromFilename).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
-  const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
+  // `named` records that this talk has a name someone chose — typed here, or
+  // carried in a session manifest — as opposed to the stem of its filename.
+  const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
@@ -216,6 +228,7 @@ function makeRow(file, extension, presetTitle) {
   download.draggable = false;
 
   title.addEventListener("input", () => {
+    if (title.value.trim()) slide.named = true;
     slide.friendlyName = title.value.trim() || defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
@@ -280,6 +293,8 @@ function supported(extension) {
 async function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
   let added = 0;
   const repeats = [];
+  const adopted = [];
+  const kept = [];
   for (const { file, title } of entries) {
     const extension = /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase();
     if (!supported(extension) || file.size === 0) {
@@ -291,7 +306,18 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
     // already listed.
     const repeat = await findDuplicate(file, slides);
     if (repeat) {
-      repeats.push(repeat.friendlyName);
+      // The file is already here, so only its name is in question. A name
+      // someone chose beats one taken from a filename, and when both sides have
+      // one the list wins, because it is what is on screen and being edited.
+      const chosen = (title || "").trim();
+      if (!chosen || chosen === repeat.friendlyName) {
+        repeats.push(repeat.friendlyName);
+      } else if (repeat.named) {
+        kept.push(`${repeat.friendlyName}, which the ZIP calls ${chosen}`);
+      } else {
+        renameSlide(repeat, chosen);
+        adopted.push(repeat.friendlyName);
+      }
       continue;
     }
     const slide = makeRow(file, extension, title);
@@ -309,12 +335,21 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
   error.textContent = messages.join(" ");
   // Skipping a repeat is the expected outcome, not a failure, so it is said
   // quietly and apart from the errors.
-  notice.hidden = repeats.length === 0;
-  notice.textContent = repeats.length
-    ? `Already in this session, so not added again: ${repeats.join(", ")}.`
-    : "";
+  const notices = [];
+  if (repeats.length) {
+    notices.push(`Already in this session, so not added again: ${repeats.join(", ")}.`);
+  }
+  // Each talk is named once, in whichever sentence says the most about it.
+  if (adopted.length) {
+    notices.push(`Already here, and now named from the running order: ${adopted.join(", ")}.`);
+  }
+  if (kept.length) {
+    notices.push(`Already here, keeping the name in the list for ${kept.join("; ")}.`);
+  }
+  notice.hidden = notices.length === 0;
+  notice.textContent = notices.join(" ");
   if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.${note}`);
-  else if (repeats.length) announce(notice.textContent);
+  else if (notices.length) announce(notice.textContent);
   return added;
 }
 

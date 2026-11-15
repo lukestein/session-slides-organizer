@@ -28,7 +28,8 @@ async function readZip(file) {
 
 /**
  * Turns a dropped ZIP into entries the list can take.
- * Returns { entries, sessionName, skipped } — entries are { file, title }.
+ * Returns { entries, sessionName, missing } — entries are { file, title },
+ * where an empty title means the manifest did not name that file.
  */
 export async function readSessionZip(file, isSupported) {
   const unpacked = await readZip(file);
@@ -61,8 +62,12 @@ export async function readSessionZip(file, isSupported) {
     // job, and it is reapplied on the way out.
     const plain = stripPosition(name);
     entries.push({
+      // An empty title means the manifest did not name this file, which is not
+      // the same as its name happening to match the filename: the export names
+      // files after their titles, so the two usually agree. The list needs to
+      // tell those apart to know whose name to trust.
       file: new File([bytes], plain, { type: "" }),
-      title: title || plain.replace(/\.[^.]+$/, ""),
+      title,
     });
     return true;
   };
