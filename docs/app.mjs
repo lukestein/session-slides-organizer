@@ -2,6 +2,7 @@ import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
 import { readSessionZip } from "./session-import.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
+import { findDuplicate } from "./file-identity.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -21,6 +22,7 @@ const browse = document.querySelector("#browse");
 const importDownloads = document.querySelector("#import-downloads");
 const zone = document.querySelector("#drop-zone");
 const error = document.querySelector("#error");
+const notice = document.querySelector("#notice");
 const status = document.querySelector("#status");
 const exportButton = document.querySelector("#export");
 const archive = document.querySelector("#session-archive");
@@ -275,12 +277,21 @@ function supported(extension) {
 
 // Entries are { file, title }; a title of its own is what a session ZIP brings
 // back, and everything else leaves it empty and takes the filename.
-function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
+async function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
   let added = 0;
+  const repeats = [];
   for (const { file, title } of entries) {
     const extension = /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase();
     if (!supported(extension) || file.size === 0) {
       rejected.push(file.name);
+      continue;
+    }
+    // Against the list as it stands, which grows as this loop runs, so a drop
+    // carrying the same file twice is caught alongside one that repeats a talk
+    // already listed.
+    const repeat = await findDuplicate(file, slides);
+    if (repeat) {
+      repeats.push(repeat.friendlyName);
       continue;
     }
     const slide = makeRow(file, extension, title);
@@ -296,7 +307,14 @@ function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
   }
   error.hidden = messages.length === 0;
   error.textContent = messages.join(" ");
+  // Skipping a repeat is the expected outcome, not a failure, so it is said
+  // quietly and apart from the errors.
+  notice.hidden = repeats.length === 0;
+  notice.textContent = repeats.length
+    ? `Already in this session, so not added again: ${repeats.join(", ")}.`
+    : "";
   if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.${note}`);
+  else if (repeats.length) announce(notice.textContent);
   return added;
 }
 
@@ -337,8 +355,10 @@ async function addFiles(files) {
     problems.push(`Named in the running order but not in the ZIP: ${unaccounted.join(", ")}.`);
   }
 
-  const note = restored ? ` Session order restored from ${restored} file${restored === 1 ? "" : "s"}.` : "";
-  const added = addEntries(entries, { rejected, problems, note });
+  // Not a count: a repeat already in the list is skipped, so the number of
+  // files the ZIP carried is not the number that joined the session.
+  const note = restored ? " Session order restored." : "";
+  const added = await addEntries(entries, { rejected, problems, note });
   // Only name the session after the ZIP when there was nothing to overwrite.
   if (added && startedEmpty && sessionName) {
     zipName.value = sessionName;

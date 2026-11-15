@@ -5,7 +5,7 @@ A browser-based organizer for conference sessions. Drop in PDFs, PowerPoint deck
 - **Open in browser** presents PDFs and PowerPoint decks alike, in a new tab, one slide at a time. PDF links stay clickable, and **Open original** in the presenter hands the file to the browser's own PDF viewer for search and printing.
 - **Downloads** use the current position, title, and original extension, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the download uses the original filename after the position.
 - **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order. A `session.md` goes in alongside them, listing the running order in plain Markdown.
-- **Dropping a session ZIP back in** restores that running order, titles and all, and adds it to the end of whatever is already listed. See **Reopening a session** below.
+- **Dropping a session ZIP back in** restores that running order, titles and all, and adds it to the end of whatever is already listed. A file already in the session is not added twice. See **Reopening a session** below.
 - **Previews and file details** include the first page of a PDF or an embedded deck preview when available. All files show their size. PDFs and modern PowerPoint decks show their page or slide count when readable.
 - **Reordering** works by dragging a row. On a touch screen use the handle. With a keyboard, focus the handle and press the up or down arrow key.
 
@@ -245,6 +245,14 @@ the manifest names but the ZIP lacks is reported.
 A ZIP without a manifest still works — the decks come in sorted by filename, which is why the
 export numbers them. Dropping one onto a list that already has talks adds to the end, so two
 sessions can be combined, and a drop can mix an archive with loose files.
+
+A file already in the session is not added a second time. Names cannot settle this — the export
+renames decks as it numbers them, and a title someone edited travels in the manifest — so the
+comparison is of the file's contents, hashed with SHA-256. Dropping the same ZIP in twice, or
+dropping a session ZIP over the loose decks it was built from, leaves the list as it is and says
+which talks were already there. Sizes are compared first, so the hash only runs when two files
+could actually be the same. Remove a talk and it can be added again; the comparison is against
+the list as it stands, not a history of it.
 
 ## Publish with GitHub Pages
 

@@ -261,6 +261,7 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .icon-button:hover { color: #9d2544; background: #fff0f4; }
 .error { margin-top: 1rem; font-size: .84rem; line-height: 1.5; }
 .error { color: #9d2544; }
+.notice { margin-top: 1rem; color: var(--muted); font-size: .84rem; line-height: 1.5; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @media (max-width: 780px) {
