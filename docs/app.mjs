@@ -75,7 +75,7 @@ function updateDownload(slide, index) {
   slide.download.download = name;
   // The presenter offers the same download, so it needs the same name, which
   // moves with the position and the title.
-  if (slide.presentable) slide.open.href = presentUrl(slide.url, slide.friendlyName, name);
+  if (slide.presentable) slide.open.href = presentUrl(slide.url, slide.friendlyName, name, slide.file.name);
 }
 
 function sessionFiles() {

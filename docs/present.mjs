@@ -7,6 +7,7 @@
 const stage = document.querySelector("#deck-stage");
 const counter = document.querySelector("#deck-count");
 const heading = document.querySelector("#deck-title");
+const sourceName = document.querySelector("#deck-source");
 const fullscreen = document.querySelector("#deck-fullscreen");
 const blank = document.querySelector("#deck-blank");
 const picker = document.querySelector("#deck-picker");
@@ -278,8 +279,18 @@ async function start() {
   const source = parameters.get("src");
   const title = parameters.get("title") ?? "";
   const filename = parameters.get("name") ?? "";
+  const sourceFile = parameters.get("file") ?? "";
   heading.textContent = title;
   document.title = title ? `Presenting ${title}` : "Presenting";
+
+  // The file's own name, when the talk goes by something else: enough to tell
+  // which deck is on screen without repeating the title back in another form.
+  const stem = sourceFile.replace(/[.][^.]+$/, "");
+  if (sourceFile && title.trim() && title.trim() !== sourceFile && title.trim() !== stem) {
+    sourceName.textContent = sourceFile;
+    sourceName.title = sourceFile;
+    sourceName.hidden = false;
+  }
 
   if (!source?.startsWith("blob:")) {
     message("Open this deck from the organizer tab.");

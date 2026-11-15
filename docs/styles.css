@@ -310,7 +310,21 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 }
 
 .deck-title {
+  flex: 0 1 auto;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The file's own name, for picking the right deck off a projector when the
+   talk has been given a friendlier one. It yields the room first. */
+.deck-source {
+  flex: 0 2 auto;
+  min-width: 2rem;
+  margin-left: -.35rem;
+  color: #8b8b96;
+  font-size: .82rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
