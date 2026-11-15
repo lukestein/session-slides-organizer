@@ -46,6 +46,10 @@ node demo.mjs --video     # writes demo.mp4
 node demo.mjs --beats=drop1,drop3,reorder   # just these beats
 ```
 
+`node screenshots.mjs` takes the still screenshots the top-level README embeds (the list, the
+presenters, the slide picker, the shortcut guide) from the same `serve/` copy, into `shots-readme/`.
+Copy the ones worth keeping into `../media/`.
+
 `sync.sh` builds `serve/` from a git ref rather than the working tree, so a take
 always matches something that shipped — `REF=main` by default, and `SLIDES=...`
 overrides where the decks come from (`../../sample slides`).
