@@ -51,6 +51,17 @@ export async function fitToWindow(cdp, sessionId, targetWidth = 1504, ratio = 16
     if (h === want) break;
     [w, h] = await setBounds(w, want + furniture);
   }
+  // Park the window almost entirely off the left edge. Chrome fires a synthetic
+  // pointermove at the user's REAL pointer whenever the page relayouts, so a
+  // window under their mouse is a window they are unwittingly driving: with the
+  // pointer near the foot the app lifts the slide picker over the slide mid-take,
+  // and a click meant for a slide link lands on a thumbnail instead. Out of reach
+  // is the fix; headless also works but captures a third slower.
+  if (!process.env.HEADLESS) {
+    await cdp.send("Browser.setWindowBounds",
+      { windowId, bounds: { left: -(w - 8), top: 25 } }).catch(() => {});
+    await sleep(400);
+  }
   VIEW.width = w; VIEW.height = h;
   VIEW.scale = Math.round((OUTPUT_WIDTH / w) * 10000) / 10000;
   VIEW.ready = true;
@@ -84,6 +95,10 @@ export async function launch({ port = 9345, profile, downloads }) {
     "--disable-features=Translate,MediaRouter,OptimizationGuideModelDownloading",
     "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
     "--disable-background-timer-throttling", "--hide-crash-restore-bubble",
+    // HEADLESS=1 forces headless. The default is a headed window parked almost
+    // entirely off-screen, which captures about half as fast again as headless
+    // while still being out of reach of the user's pointer -- see fitToWindow.
+    ...(process.env.HEADLESS ? ["--headless=new"] : []),
     "about:blank",
   ], { stdio: "ignore" });
   let version;
@@ -169,20 +184,35 @@ export function page(cdp, sessionId) {
     // assuming one.
     sx: 1, sy: 1, ox: 0, oy: 0,
     async calibrate() {
+      // Read the coordinates the page actually receives, from the event itself.
+      // The drawn pointer is placed explicitly now, so it cannot be used to
+      // measure this -- it would always report exactly what we asked for.
       const probe = async (x, y) => {
-        await call("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons: 0, button: "none" });
-        await sleep(20);
-        return api.eval("__demo.at()");
+        await api.eval("window.__probe = null; addEventListener('pointermove'," +
+          " e => { window.__probe = [e.clientX, e.clientY]; }, { once: true, capture: true })", false);
+        await call("Input.dispatchMouseEvent",
+          { type: "mouseMoved", x, y, buttons: 0, button: "none" });
+        for (let i = 0; i < 20; i++) {
+          const got = await api.eval("window.__probe");
+          if (got) return { x: got[0], y: got[1] };
+          await sleep(25);
+        }
+        return null;
       };
-      const a = await probe(100, 100);
-      const b = await probe(600, 500);
-      api.sx = (b.x - a.x) / 500;
-      api.sy = (b.y - a.y) / 400;
-      api.ox = a.x - 100 * api.sx;
-      api.oy = a.y - 100 * api.sy;
-      if (!isFinite(api.sx) || !api.sx || !isFinite(api.sy) || !api.sy)
-        throw new Error("input calibration failed");
-      return { sx: api.sx, sy: api.sy, ox: api.ox, oy: api.oy };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const a = await probe(100, 100);
+        const b = await probe(600, 500);
+        if (!a || !b) continue;
+        const sx = (b.x - a.x) / 500, sy = (b.y - a.y) / 400;
+        // A stray synthetic move -- Chrome fires one at the user's real mouse
+        // position on relayout -- can land in a probe and skew it. Reject the
+        // implausible rather than silently aiming everything a bit wrong.
+        if (![sx, sy].every(v => isFinite(v) && v > 0.2 && v < 5)) continue;
+        api.sx = sx; api.sy = sy;
+        api.ox = a.x - 100 * sx; api.oy = a.y - 100 * sy;
+        return { sx, sy, ox: api.ox, oy: api.oy };
+      }
+      throw new Error("input calibration failed");
     },
     // page-space point -> the coordinates to hand Input.dispatchMouseEvent
     pt(X, Y) { return { x: (X - api.ox) / api.sx, y: (Y - api.oy) / api.sy }; },
@@ -190,6 +220,10 @@ export function page(cdp, sessionId) {
       const { x, y } = api.pt(X, Y);
       await call("Input.dispatchMouseEvent",
         { type: "mouseMoved", x, y, buttons, button: buttons ? "left" : "none" });
+      // Place the drawn pointer rather than letting it follow events: see the
+      // note in harness.js about Chrome's synthetic moves.
+      await call("Runtime.evaluate",
+        { expression: `__demo.place(${X}, ${Y})`, returnByValue: false });
     },
     async glide(X1, Y1, ms, buttons = 0) {
       const from = await api.eval("__demo.at()");

@@ -151,12 +151,16 @@ async function openPresenter(rowSelector, label) {
   await cdp.send("Target.activateTarget", { targetId: entry.targetInfo.targetId });
   await rec.focus(entry.targetInfo.targetId);
   await deck.inject();
-  await deck.calibrate();
   await deck.until("!!document.querySelector('#deck-count')?.textContent.trim()", 40000);
   // The popup does not reliably inherit the override; check rather than assume.
   await deck.call("Emulation.setDeviceMetricsOverride",
     { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: false });
   await sleep(250);
+  // Calibrate AFTER that, never before: applying the override can change the
+  // viewport, and a mapping measured beforehand is then wrong by exactly that
+  // factor. Every later click lands somewhere else -- which once put a click
+  // meant for a slide link onto a picker thumbnail instead.
+  await deck.calibrate();
   const seen = await deck.eval("[innerWidth, innerHeight]");
   console.log(`  ${label} viewport: ${seen} (want ${[VIEW.width, VIEW.height]})`,
     seen[1] === VIEW.height ? "OK" : "*** MISMATCH: frame will be clipped ***");
@@ -241,6 +245,21 @@ if (want("pdf")) {
     const link = await deck.box(".annotationLayer a");
     await deck.glide(link.x, link.y, 620);
     await sleep(240);
+    // Chrome fires a synthetic pointermove at the user's REAL mouse position
+    // whenever the page relayouts. If their pointer happens to rest near the
+    // foot of the window the app lifts the slide picker over the slide -- quite
+    // correctly -- and this click lands on a thumbnail instead of the link.
+    // Check what is actually under the point, and clear it if it is not the link.
+    const under = () => deck.eval(`(() => { const e = document.elementFromPoint(${link.x}, ${link.y});
+      return e && e.closest(".annotationLayer a") ? "link" : "blocked"; })()`);
+    for (let i = 0; i < 4 && await under() === "blocked"; i++) {
+      await deck.key("Escape", KEYS.Escape);
+      await deck.move(park[0], park[1]);
+      await sleep(260);
+      await deck.move(link.x, link.y);
+      await sleep(160);
+    }
+    if (await under() === "blocked") throw new Error("link is covered; cannot click it");
     await deck.click(link.x, link.y);
     await deck.until(`parseInt(document.querySelector('#deck-count').textContent, 10) !== ${from}`, 10000);
     console.log(`  link ${leg}: ${from} -> ${await page_no(deck)}`);

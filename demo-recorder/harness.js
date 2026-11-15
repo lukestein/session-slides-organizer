@@ -7,7 +7,7 @@ const ARROW = '<svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www
   + ' fill="#1b1b1b" stroke="#ffffff" stroke-width="1.7" stroke-linejoin="round"/></svg>';
 
 let layer, cursor, ghost;
-let cx = -200, cy = -200, follow = true;
+let cx = -200, cy = -200;
 
 function boot() {
   if (layer) return;
@@ -28,24 +28,28 @@ function place(x, y) {
   if (cursor) cursor.style.transform = `translate(${x}px, ${y}px)`;
   if (ghost) ghost.style.transform = `translate(${x + 16}px, ${y + 20}px)`;
 }
-addEventListener("pointermove", e => { if (follow) place(e.clientX, e.clientY); }, true);
+// Deliberately NOT following pointermove. Chrome synthesises one at the user's
+// real mouse position whenever the page relayouts, so following them let the
+// physical pointer yank the drawn one across the screen mid-take -- which once
+// parked it over the slide picker's hover zone and sent a click meant for a
+// slide link into a thumbnail instead. The driver places this cursor explicitly.
 
 NS.show = (on = true) => { boot(); cursor.style.opacity = on ? "1" : "0"; };
 NS.at = () => ({ x: cx, y: cy });
 NS.place = place;
-NS.follow = on => { follow = on; };
+
 
 const easeInOut = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeOut = t => 1 - Math.pow(1 - t, 3);
 
 NS.glide = (x1, y1, ms, easing = "inout") => new Promise(done => {
-  boot(); follow = false;
+  boot();
   const fn = easing === "out" ? easeOut : easeInOut;
   const x0 = cx, y0 = cy, t0 = performance.now();
   (function tick(now) {
     const t = Math.min(1, (now - t0) / ms), e = fn(t);
     place(x0 + (x1 - x0) * e, y0 + (y1 - y0) * e);
-    if (t < 1) requestAnimationFrame(tick); else { follow = true; done(); }
+    if (t < 1) requestAnimationFrame(tick); else done();
   })(t0);
 });
 
