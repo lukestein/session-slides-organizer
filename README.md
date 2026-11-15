@@ -4,7 +4,8 @@ A browser-based organizer for conference sessions. Drop in PDFs, PowerPoint deck
 
 - **Open in browser** presents PDFs and PowerPoint decks alike, in a new tab, one slide at a time. PDF links stay clickable, and **Open original** in the presenter hands the file to the browser's own PDF viewer for search and printing.
 - **Downloads** use the current position, title, and original extension, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the download uses the original filename after the position.
-- **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order.
+- **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order. A `session.md` goes in alongside them, listing the running order in plain Markdown.
+- **Dropping a session ZIP back in** restores that running order, titles and all, and adds it to the end of whatever is already listed. A file already in the session is not added twice. See **Reopening a session** below.
 - **Previews and file details** include the first page of a PDF or an embedded deck preview when available. All files show their size. PDFs and modern PowerPoint decks show their page or slide count when readable.
 - **Reordering** works by dragging a row. On a touch screen use the handle. With a keyboard, focus the handle and press the up or down arrow key.
 
@@ -54,13 +55,11 @@ Update the version numbers in this README and review the vendor diff. Keep PDF.j
 - [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting in the browser** below. PowerPoint works locally; Keynote does not.
 - [ ] Decide whether to keep the in-browser presenter, given the bundle size, the CSP exceptions, and the age of the deck renderer. The PDF side rests on PDF.js, which the site already bundled.
 - [x] Explore a PDF presentation view with one page at a time and a fullscreen control. PDFs now use the same presenter as decks, with their links intact.
-- [ ] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
-  on a fresh machine or in a new tab. The open question is what that page should be. Carrying the
-  whole site would add about 7 MB to every ZIP, almost all of it `docs/vendor/`, and a page opened
-  from `file://` cannot load ES modules in Chrome, so the app would not run from the extracted
-  folder regardless. A small manifest of the running order and the edited titles, which the
-  organizer offers to import alongside the files, sidesteps both and restores more than the
-  numbered filenames already do.
+- [x] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
+  on a fresh machine or in a new tab. Done as a `session.md` manifest rather than a page: carrying
+  the whole site would have added about 7 MB to every ZIP, and a page opened from `file://` cannot
+  load ES modules in Chrome, so it would not have run from the extracted folder anyway. See
+  **Reopening a session** below.
 - [ ] Consider a **Next talk** button in the presenter, in the top bar where the full-screen chrome
   hides it, moving to the next presentation in the session in the same tab and skipping anything
   the browser cannot render. The presenter is deliberately self-contained today: it reads the file
@@ -216,8 +215,75 @@ From the repository root:
 Keep `@web-ppt/core` and `@web-ppt/viewer-core` on the same version. Test a `.pptx` with charts
 and pictures, a legacy `.ppt`, and confirm the browser console reports no CSP violations.
 
+## Reopening a session
+
+Every session ZIP carries a `session.md` beside the decks — the running order, in Markdown, meant
+to be read:
+
+```markdown
+# SFS Cavalcade session
+
+Import these files to the Session Slides Organizer to restore this running
+order. Drag in the whole ZIP, or the files it holds along with this one.
+
+https://lukestein.com/session-slides-organizer/
+
+Reordering the list below, or rewriting a title, changes what the import does.
+
+1. **Opening paper** — `1. Opening paper.pptx`
+2. **Discussion of Hamdi et al** — `2. Discussion of Hamdi et al.pdf`
+3. **Perceived skin tone** — `3. Perceived skin tone.key`
+```
+
+Dropping that ZIP back in rebuilds the session: the order and the edited titles return, the
+heading becomes the ZIP's name again when the list started empty, and the positional `1. ` prefixes
+come off the filenames, since position is the list's job and is reapplied on the way out.
+
+The manifest is the running order, not a record of one. Reorder its lines and the session comes
+back in that order; rewrite a title and the new one is used. Anything in the ZIP the manifest does
+not mention is still added, after the talks it does, so a file is never silently dropped; anything
+the manifest names but the ZIP lacks is reported.
+
+The ZIP does not have to stay a ZIP. Unpack it and drag the files in — `session.md` among them —
+and the running order is applied just the same, whatever order the desktop hands them over in.
+The importer reads any Markdown file dropped with the slides as a candidate running order, so
+renaming `session.md` to something meaningful does not break it; a Markdown file that holds no
+running order is rejected like any other file that is not a deck.
+
+Without a manifest, files that all carry a positional prefix are still treated as a session: they
+are put in numerical order and the prefixes come off, since that is what the export leaves behind.
+Numbers are compared as numbers, so a session runs past nine talks without `10.` sorting before
+`2.`. Files that are not numbered that way keep the order they were dropped in, under their own
+names.
+
+Dropping onto a list that already has talks adds to the end, so two sessions can be combined, and
+a drop can mix an archive with loose files. Loose files stay together as one group, at the place
+the first of them landed, because a running order applies to all of them at once.
+
+A file already in the session is not added a second time. Names cannot settle this — the export
+renames decks as it numbers them, and a title someone edited travels in the manifest — so the
+comparison is of the file's contents, hashed with SHA-256. Dropping the same ZIP in twice, or
+dropping a session ZIP over the loose decks it was built from, leaves the list as it is and says
+which talks were already there. Sizes are compared first, so the hash only runs when two files
+could actually be the same. Remove a talk and it can be added again; the comparison is against
+the list as it stands, not a history of it.
+
+That leaves the names to settle, since the repeat and the talk already listed may be called
+different things. A name someone chose beats one taken from a filename: a paper sitting in the
+list under `rd174_don_2026_lehigh.pdf` takes the name the archive has for it. When both sides
+have a chosen name, the one in the list wins — it is on screen and being edited, and an import
+should not overwrite a title just typed — and the archive's name is reported rather than dropped
+silently. The adopted name behaves as a typed one: it names the file on the next export, and
+clearing the field still falls back to the filename.
+
 ## Publish with GitHub Pages
 
 Push `main` to a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, then choose **main** and **/docs** and save. GitHub will display the published URL. All asset paths are relative so the same files work under a project URL such as `https://OWNER.github.io/session-slides-organizer/`.
+
+The footer dates itself. GitHub Pages sets `Last-Modified` on every deploy, the browser hands it
+over as `document.lastModified`, and the page prints it as `Updated YYYY-MM-DD`. There is no build
+step to stamp a version into and nothing to bump by hand, so a screenshot of the page says which
+build it was, to the day. Served from a local folder the date is the file's own, which says the
+same thing locally; if a browser cannot tell, the stamp is left out rather than guessed.
 
 [GitHub Pages publishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)

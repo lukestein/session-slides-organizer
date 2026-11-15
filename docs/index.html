@@ -30,13 +30,13 @@
       <button type="button" class="add-icon" id="browse" aria-label="Choose slide files" title="Choose slide files">+</button>
       <div class="drop-copy">
         <h2>Drop slides here</h2>
-        <p>PDF, PowerPoint, or Keynote</p>
+        <p>PDF, PowerPoint, Keynote, or a session ZIP</p>
       </div>
       <div class="receive-actions">
         <a href="https://pairdrop.net/?init=public_room" target="_blank" rel="noopener noreferrer">Receive with PairDrop</a>
         <button type="button" id="import-downloads">Import received files</button>
       </div>
-      <input type="file" id="files" accept=".pdf,.ppt,.pptx,.pps,.ppsx,.pptm,.ppsm,.key" multiple hidden>
+      <input type="file" id="files" accept=".pdf,.ppt,.pptx,.pps,.ppsx,.pptm,.ppsm,.key,.zip" multiple hidden>
     </section>
 
     <div class="zip-row" id="session-archive" hidden>
@@ -54,6 +54,7 @@
       </div>
     </div>
     <p id="error" class="error" role="alert" hidden></p>
+    <p id="notice" class="notice" role="status" hidden></p>
 
     <p id="status" class="sr-only" role="status"></p>
 
@@ -61,7 +62,10 @@
       viewer and may not match PowerPoint exactly. Download one to present from PowerPoint itself.</p>
   </main>
 
-  <footer class="shell">Made with love and AI by <a href="https://lukestein.com" target="_blank" rel="noopener">Luke Stein</a></footer>
+  <footer class="shell">Made with love and AI by <a href="https://lukestein.com" target="_blank"
+    rel="noopener">Luke Stein</a>.<span id="build-stamp" hidden> Updated <time id="build-date"></time>.</span>
+    <a href="https://github.com/lukestein/session-slides-organizer" target="_blank"
+      rel="noopener">Source code</a>.</footer>
 
   <template id="slide-row">
     <li class="slide">

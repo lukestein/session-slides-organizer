@@ -261,6 +261,7 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .icon-button:hover { color: #9d2544; background: #fff0f4; }
 .error { margin-top: 1rem; font-size: .84rem; line-height: 1.5; }
 .error { color: #9d2544; }
+.notice { margin-top: 1rem; color: var(--muted); font-size: .84rem; line-height: 1.5; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @media (max-width: 780px) {
@@ -309,7 +310,21 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 }
 
 .deck-title {
+  flex: 0 1 auto;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The file's own name, for picking the right deck off a projector when the
+   talk has been given a friendlier one. It yields the room first. */
+.deck-source {
+  flex: 0 2 auto;
+  min-width: 2rem;
+  margin-left: -.35rem;
+  color: #8b8b96;
+  font-size: .82rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

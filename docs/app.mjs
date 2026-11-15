@@ -1,6 +1,9 @@
 import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
+import { readLooseSession, readSessionZip } from "./session-import.mjs";
+import { isManifestName, parseManifest } from "./session-manifest.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
+import { findDuplicate } from "./file-identity.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -20,6 +23,7 @@ const browse = document.querySelector("#browse");
 const importDownloads = document.querySelector("#import-downloads");
 const zone = document.querySelector("#drop-zone");
 const error = document.querySelector("#error");
+const notice = document.querySelector("#notice");
 const status = document.querySelector("#status");
 const exportButton = document.querySelector("#export");
 const archive = document.querySelector("#session-archive");
@@ -71,7 +75,7 @@ function updateDownload(slide, index) {
   slide.download.download = name;
   // The presenter offers the same download, so it needs the same name, which
   // moves with the position and the title.
-  if (slide.presentable) slide.open.href = presentUrl(slide.url, slide.friendlyName, name);
+  if (slide.presentable) slide.open.href = presentUrl(slide.url, slide.friendlyName, name, slide.file.name);
 }
 
 function sessionFiles() {
@@ -79,6 +83,7 @@ function sessionFiles() {
   return slides.map((slide, index) => ({
     file: slide.file,
     name: downloadName(slide, index, width),
+    title: slide.friendlyName,
   }));
 }
 
@@ -90,7 +95,7 @@ function updateArchive() {
   const count = slides.length;
   archive.hidden = count === 0;
   if (count) {
-    const size = formatSize(sessionZipSize(sessionFiles()));
+    const size = formatSize(sessionZipSize(archiveStem(), sessionFiles()));
     zipDetails.textContent = `${count} ${count === 1 ? "file" : "files"} (${size})`;
   }
 }
@@ -136,6 +141,16 @@ function setMetadata(slide, count, unit) {
   slide.metadata.textContent = `(${quantity}${size})`;
 }
 
+// Gives a row a name it did not have, exactly as typing one would: the
+// filename stem stays the fallback, so clearing the field still returns to it,
+// and the next export names the file after the new title.
+function renameSlide(slide, name) {
+  slide.friendlyName = name.slice(0, slide.title.maxLength);
+  slide.named = true;
+  slide.title.value = slide.friendlyName;
+  slide.title.defaultValue = slide.friendlyName;
+}
+
 function removeSlide(slide) {
   const index = slides.indexOf(slide);
   slides.splice(index, 1);
@@ -163,7 +178,7 @@ function queuePreview(slide, extension) {
   });
 }
 
-function makeRow(file, extension) {
+function makeRow(file, extension, presetTitle) {
   const row = template.content.firstElementChild.cloneNode(true);
   const title = row.querySelector(".title");
   const handle = row.querySelector(".order");
@@ -177,9 +192,12 @@ function makeRow(file, extension) {
     ? file.slice(0, file.size, "application/pdf")
     : file;
   const url = URL.createObjectURL(source);
-  const defaultTitle = (file.name.slice(0, -(extension.length + 1)).trim() || file.name).slice(0, title.maxLength);
+  const fromFilename = file.name.slice(0, -(extension.length + 1)).trim() || file.name;
+  const defaultTitle = (presetTitle?.trim() || fromFilename).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
-  const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, presentable: canPresent(extension) };
+  // `named` records that this talk has a name someone chose — typed here, or
+  // carried in a session manifest — as opposed to the stem of its filename.
+  const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
@@ -211,6 +229,7 @@ function makeRow(file, extension) {
   download.draggable = false;
 
   title.addEventListener("input", () => {
+    if (title.value.trim()) slide.named = true;
     slide.friendlyName = title.value.trim() || defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
@@ -266,25 +285,153 @@ function makeRow(file, extension) {
   return slide;
 }
 
-function addFiles(files) {
-  const rejected = [];
+function supported(extension) {
+  return Object.hasOwn(formats, extension);
+}
+
+// Entries are { file, title }; a title of its own is what a session ZIP brings
+// back, and everything else leaves it empty and takes the filename.
+async function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
   let added = 0;
-  for (const file of files) {
+  const repeats = [];
+  const adopted = [];
+  const kept = [];
+  for (const { file, title } of entries) {
     const extension = /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase();
-    if (!Object.hasOwn(formats, extension) || file.size === 0) {
+    if (!supported(extension) || file.size === 0) {
       rejected.push(file.name);
       continue;
     }
-    const slide = makeRow(file, extension);
+    // Against the list as it stands, which grows as this loop runs, so a drop
+    // carrying the same file twice is caught alongside one that repeats a talk
+    // already listed.
+    const repeat = await findDuplicate(file, slides);
+    if (repeat) {
+      // The file is already here, so only its name is in question. A name
+      // someone chose beats one taken from a filename, and when both sides have
+      // one the list wins, because it is what is on screen and being edited.
+      const chosen = (title || "").trim();
+      if (!chosen || chosen === repeat.friendlyName) {
+        repeats.push(repeat.friendlyName);
+      } else if (repeat.named) {
+        kept.push(`${repeat.friendlyName}, which the ZIP calls ${chosen}`);
+      } else {
+        renameSlide(repeat, chosen);
+        adopted.push(repeat.friendlyName);
+      }
+      continue;
+    }
+    const slide = makeRow(file, extension, title);
     slides.push(slide);
     list.append(slide.row);
     queuePreview(slide, extension);
     added++;
   }
   updateList();
-  error.hidden = rejected.length === 0;
-  error.textContent = rejected.length ? `Couldn’t add ${rejected.join(", ")}. Choose a PDF, PowerPoint, or Keynote file.` : "";
-  if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.`);
+  const messages = [...problems];
+  if (rejected.length) {
+    messages.push(`Couldn’t add ${rejected.join(", ")}. Choose a PDF, PowerPoint, or Keynote file.`);
+  }
+  error.hidden = messages.length === 0;
+  error.textContent = messages.join(" ");
+  // Skipping a repeat is the expected outcome, not a failure, so it is said
+  // quietly and apart from the errors.
+  const notices = [];
+  if (repeats.length) {
+    notices.push(`Already in this session, so not added again: ${repeats.join(", ")}.`);
+  }
+  // Each talk is named once, in whichever sentence says the most about it.
+  if (adopted.length) {
+    notices.push(`Already here, and now named from the running order: ${adopted.join(", ")}.`);
+  }
+  if (kept.length) {
+    notices.push(`Already here, keeping the name in the list for ${kept.join("; ")}.`);
+  }
+  notice.hidden = notices.length === 0;
+  notice.textContent = notices.join(" ");
+  if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.${note}`);
+  else if (notices.length) announce(notice.textContent);
+  return added;
+}
+
+// A dropped ZIP is unpacked where it was dropped, so a drop mixing an archive
+// with loose files keeps the order they arrived in. The loose files are one
+// group, held together wherever the first of them landed, because a running
+// order can only be applied to all of them at once.
+async function addFiles(files) {
+  const rejected = [];
+  const problems = [];
+  const groups = [];
+  const loose = [];
+  const unaccounted = [];
+  let looseGroup = -1;
+  let manifestText = "";
+  let restored = false;
+  let sessionName = "";
+  const startedEmpty = slides.length === 0;
+
+  for (const file of files) {
+    // A running order dragged in beside its decks, rather than inside a ZIP.
+    // Anything else ending in .md is not one, and falls through to be rejected
+    // like any other file that is not a deck.
+    if (isManifestName(file.name) && !manifestText) {
+      const text = await file.text();
+      if (parseManifest(text).order.length) {
+        manifestText = text;
+        continue;
+      }
+    }
+    if (!/[.]zip$/i.test(file.name)) {
+      if (looseGroup < 0) {
+        looseGroup = groups.length;
+        groups.push([]);
+      }
+      loose.push({ name: file.name, file });
+      continue;
+    }
+    try {
+      const session = await readSessionZip(file, supported);
+      if (!session.entries.length) {
+        problems.push(`${file.name} held no slides. A session ZIP needs at least one PDF, PowerPoint, or Keynote file.`);
+        continue;
+      }
+      groups.push(session.entries);
+      unaccounted.push(...session.missing);
+      restored = true;
+      sessionName ||= session.sessionName;
+    } catch {
+      problems.push(`Couldn’t read ${file.name}. It may not be a ZIP, or it may be damaged.`);
+    }
+  }
+
+  if (loose.length) {
+    const session = readLooseSession(manifestText, loose, supported);
+    groups[looseGroup] = session.entries;
+    unaccounted.push(...session.missing);
+    restored ||= session.ordered;
+    sessionName ||= session.sessionName;
+  } else if (manifestText) {
+    problems.push("A running order on its own has no slides. Drag in the files beside it, or the whole session ZIP.");
+  }
+
+  const entries = groups.flat();
+
+  // A hand-edited manifest can name a file that is not in the ZIP. Say so,
+  // rather than leaving someone to notice a talk is missing.
+  if (unaccounted.length) {
+    problems.push(`Named in the running order but not found: ${unaccounted.join(", ")}.`);
+  }
+
+  // Not a count: a repeat already in the list is skipped, so the number of
+  // files that arrived is not the number that joined the session.
+  const note = restored ? " Session order restored." : "";
+  const added = await addEntries(entries, { rejected, problems, note });
+  // Only take the session's name when there was nothing to overwrite.
+  if (added && startedEmpty && sessionName) {
+    zipName.value = sessionName;
+    exportButton.setAttribute("aria-label", `Download ${zipName.value}.zip`);
+  }
+  return added;
 }
 
 function followPointer(y) {
@@ -386,9 +533,10 @@ importDownloads.addEventListener("click", async () => {
       startIn: "downloads",
       multiple: true,
       types: [{
-        description: "Presentation files",
+        description: "Presentations and session ZIPs",
         accept: {
           "application/pdf": [".pdf"],
+          "application/zip": [".zip"],
           "application/octet-stream": Object.keys(formats).filter(extension => extension !== "pdf")
             .map(extension => `.${extension}`),
         },
@@ -429,7 +577,7 @@ exportButton.addEventListener("click", async () => {
   announce("Preparing session ZIP.");
   error.hidden = true;
   try {
-    const url = URL.createObjectURL(await buildSessionZip(files));
+    const url = URL.createObjectURL(await buildSessionZip(archiveStem(), files));
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
@@ -445,6 +593,25 @@ exportButton.addEventListener("click", async () => {
     exportButton.disabled = false;
   }
 });
+
+// When this copy of the page was published. There is no build step to stamp a
+// version into, but GitHub Pages sets Last-Modified on every deploy and the
+// browser hands it over as document.lastModified — so the footer dates itself,
+// with nothing to remember to update. Served from a local folder it reports the
+// file's own date, which is the same thing said locally. A browser that cannot
+// tell gives the current time, so the stamp stays hidden unless it parses.
+const built = new Date(document.lastModified);
+if (!Number.isNaN(built.getTime())) {
+  const stamp = [
+    built.getFullYear(),
+    String(built.getMonth() + 1).padStart(2, "0"),
+    String(built.getDate()).padStart(2, "0"),
+  ].join("-");
+  const date = document.querySelector("#build-date");
+  date.dateTime = stamp;
+  date.textContent = stamp;
+  document.querySelector("#build-stamp").hidden = false;
+}
 
 window.addEventListener("pageshow", event => {
   if (!event.persisted) return;
