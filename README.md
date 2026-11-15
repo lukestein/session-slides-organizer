@@ -280,4 +280,10 @@ clearing the field still falls back to the filename.
 
 Push `main` to a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, then choose **main** and **/docs** and save. GitHub will display the published URL. All asset paths are relative so the same files work under a project URL such as `https://OWNER.github.io/session-slides-organizer/`.
 
+The footer dates itself. GitHub Pages sets `Last-Modified` on every deploy, the browser hands it
+over as `document.lastModified`, and the page prints it as `Updated YYYY-MM-DD`. There is no build
+step to stamp a version into and nothing to bump by hand, so a screenshot of the page says which
+build it was, to the day. Served from a local folder the date is the file's own, which says the
+same thing locally; if a browser cannot tell, the stamp is left out rather than guessed.
+
 [GitHub Pages publishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)

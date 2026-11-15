@@ -594,6 +594,25 @@ exportButton.addEventListener("click", async () => {
   }
 });
 
+// When this copy of the page was published. There is no build step to stamp a
+// version into, but GitHub Pages sets Last-Modified on every deploy and the
+// browser hands it over as document.lastModified — so the footer dates itself,
+// with nothing to remember to update. Served from a local folder it reports the
+// file's own date, which is the same thing said locally. A browser that cannot
+// tell gives the current time, so the stamp stays hidden unless it parses.
+const built = new Date(document.lastModified);
+if (!Number.isNaN(built.getTime())) {
+  const stamp = [
+    built.getFullYear(),
+    String(built.getMonth() + 1).padStart(2, "0"),
+    String(built.getDate()).padStart(2, "0"),
+  ].join("-");
+  const date = document.querySelector("#build-date");
+  date.dateTime = stamp;
+  date.textContent = stamp;
+  document.querySelector("#build-stamp").hidden = false;
+}
+
 window.addEventListener("pageshow", event => {
   if (!event.persisted) return;
   // Restore names from the preserved list if the browser resets form controls.
