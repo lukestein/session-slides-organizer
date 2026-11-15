@@ -1,13 +1,113 @@
 # Session Slides Organizer
 
-A browser-based organizer for conference sessions. Drop in PDFs, PowerPoint decks, and Keynote files, edit their display titles, and arrange the talks in speaking order. The app processes the files on the room computer and keeps the list for the life of the tab.
+**Hosted at <https://lukestein.com/session-slides-organizer/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
 
-- **Open in browser** presents PDFs and PowerPoint decks alike, in a new tab, one slide at a time. PDF links stay clickable, and **Open original** in the presenter hands the file to the browser's own PDF viewer for search and printing.
-- **Downloads** use the current position, title, and original extension, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the download uses the original filename after the position.
-- **Download session ZIP** bundles the decks locally in speaking order. Positions are padded with zeros when needed so sorting by filename preserves the order. A `session.md` goes in alongside them, listing the running order in plain Markdown.
-- **Dropping a session ZIP back in** restores that running order, titles and all, and adds it to the end of whatever is already listed. A file already in the session is not added twice. See **Reopening a session** below.
-- **Previews and file details** include the first page of a PDF or an embedded deck preview when available. All files show their size. PDFs and modern PowerPoint decks show their page or slide count when readable.
-- **Reordering** works by dragging a row. On a touch screen use the handle. With a keyboard, focus the handle and press the up or down arrow key.
+[![Watch the 43-second demo: four talks dropped into the organizer, reordered and renamed, presented from the browser, and downloaded as a session ZIP](media/demo-poster.jpg)](media/demo.mp4)
+
+▶ *Click the picture to watch the 43-second demo.*
+
+A small web tool for whoever runs a conference session, a seminar, or a panel. When several speakers share one room computer, the usual scramble is a pile of files in Downloads, a different app for each format, and a laptop-swap between every talk. Here you put all the decks in one list, put them in speaking order, and open each one at its turn. PDFs, PowerPoint decks and Keynote files all go in the same list.
+
+- **One list, in speaking order.** Drag talks to reorder them, and give each a clean display title.
+- **Present from the browser.** PDFs and PowerPoint decks open in their own tab, one slide at a time, ready to send to the projector.
+- **A ZIP of the whole session.** Numbered, named in order, with a `session.md` running order beside the decks. Drop that ZIP back in later to pick up exactly where you left off.
+- **Private by design.** The organizer has no server side. Nothing is uploaded, and there is nothing to sign in to.
+
+## How it works
+
+### 1. Drop your slides in
+
+Drag PDFs, PowerPoint decks, Keynote files, or a saved session ZIP onto the page, or click **+** to choose them. Each deck gets a row with a preview of its first slide, its file size, and its page or slide count when it can be read.
+
+### 2. Name and order the talks
+
+![The organizer with four talks listed in order, each with a thumbnail, an editable title, the original filename, and Open in browser and Download buttons, above a session ZIP row](media/list.png)
+
+- **Rename** a talk by typing in its title field. Press **Tab** to move to the next title.
+- **Reorder** by dragging a row by its handle. On a touch screen, use the handle too. With a keyboard, focus the handle and press the up or down arrow key.
+- **Remove** a talk with the trash button.
+
+### 3. Present from the browser
+
+**Open in browser** opens the deck in a new tab, so the presenter's view can go to the projector while the list stays on the laptop. PDFs and PowerPoint decks use the same presenter, with the same keys.
+
+![A PDF open in the presenter, a research chart filling the screen, with the title, slide count, Open original, Download, All slides and Full screen buttons in a bar along the top](media/presenter.png)
+
+Press **G** to see every slide as a strip of thumbnails along the bottom, and click one to jump to it.
+
+![The same presenter with the slide picker raised along the foot of the screen](media/slide-picker.png)
+
+PowerPoint decks play their click-by-click builds, as PowerPoint does.
+
+![A PowerPoint deck open in the same presenter](media/powerpoint.png)
+
+Press **?** at any time for the shortcut guide.
+
+![The keyboard shortcut guide over a slide](media/shortcuts.png)
+
+#### Presenter keyboard shortcuts
+
+| Key | Does |
+| --- | --- |
+| → ↓ Space Page Down | Next slide, or the next click-by-click build |
+| ← ↑ Page Up | Previous |
+| Home / End | First / last slide |
+| **B** / **W** | Blank the screen black or white, as in PowerPoint |
+| **G** | Show all slides as thumbnails along the bottom; click one to jump |
+| **?** or **/** | Show the keyboard guide |
+| **Esc** | Close the guide or the slide picker |
+
+Presentation clickers work too, since both the arrow keys and the Page keys move. You can also click the outer eighth of either side of a slide to move on. Links inside a PDF still work, including jumps to another page, and a link at the very edge of a page takes its own click. The **All slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own full screen. In full screen the bar hides until the pointer reaches the top.
+
+Coming back from a blank screen returns to the slide that was up, so a key pressed to wake the screen does not cost a slide.
+
+The deck is read into memory before it is shown, so closing the organizer tab or removing the row cannot interrupt a talk in progress.
+
+### 4. Download the session
+
+**Download session ZIP** bundles the decks, in speaking order, without leaving your computer. Name the ZIP in the field beside the button, then download it.
+
+- Each deck is named for its position, title and original type, as in `2. Opening paper.pptx`. If the title is blank or unchanged, the original filename follows the position instead.
+- Positions are padded with zeros when there are enough talks to need it, so sorting by filename keeps the order.
+- A `session.md` goes in alongside the decks, listing the running order in plain Markdown, so a printed or emailed ZIP still makes sense to a human.
+
+You can also download any single deck from its row, with the same numbered name.
+
+### 5. Pick the session up again
+
+Drop a session ZIP back onto the page and the running order returns, titles and all. Things to know:
+
+- It adds to the end of whatever is already listed, so two sessions can be combined.
+- A talk that is already in the list is not added a second time, even if the file has been renamed since. Dropping the same ZIP twice leaves the list as it is and says which talks were already there.
+- It does not have to stay a ZIP. Unpack it and drag the files in, `session.md` among them, and the order is applied just the same.
+- You can edit `session.md` by hand. Reorder its lines or rewrite a title and the import follows. A deck in the ZIP that the file does not mention is still added, after the ones it does, so nothing is silently dropped.
+
+## Good to know
+
+**Your list lives in the open tab.** There is no account and nothing is saved on a server. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
+
+**What can be opened.**
+
+| Format | Preview, size and count | Present in the browser | Download and ZIP |
+| --- | --- | --- | --- |
+| PDF | Yes | Yes, links included | Yes |
+| PowerPoint: `.pptx` `.pptm` `.ppsx` `.ppsm`, and the older `.ppt` `.pps` | Yes | Yes | Yes |
+| Keynote `.key` | Preview of the first slide only | **No** | Yes |
+
+- **Keynote decks cannot be shown in the browser.** Apple keeps the slides in a format with no public specification, and no browser-side reader for it exists. A Keynote row still has its preview, a Download button, and a place in the ZIP. To present one from the browser, use **File → Export To** in Keynote and choose PDF or PowerPoint. Some `.key` files are folders rather than single files, and those cannot be added to the list at all.
+- **PowerPoint decks are close to, but not exactly, what PowerPoint shows.** Text can wrap differently, and decks that use fonts the room computer does not have will substitute others, as they would in PowerPoint itself. PowerPoint rows carry an asterisk as a reminder. For a talk where every detail matters, use **Download** and present from PowerPoint.
+- **PDFs in the presenter give up the browser's own viewer around the page,** meaning its toolbar, printing, and find across the whole document. The **Open original** button in the presenter bar hands the file to the browser's own PDF viewer for all of that.
+- **Full screen** uses the browser's own full-screen mode. If a browser refuses it, the button names that browser's own shortcut, and the presenter fills its tab either way.
+
+**Receiving slides from speakers (optional).** If speakers are not in the room with a USB stick, **Receive with PairDrop** opens a temporary room on the third-party [PairDrop](https://pairdrop.net/) service in a separate tab. Speakers join with the QR code or room code and send one deck at a time. Accept each in PairDrop, return to the organizer, and click **Import received files**, or drop the downloaded deck into the list. This is the only part of the tool that involves another service, and it only runs when you click it. It is still waiting on a test on a real classroom computer; see the To do list below.
+
+Tip for a shared room computer: in PairDrop, set that browser's display name to something like **Presentation Computer**, so speakers know which device to pick. PairDrop remembers the name in that browser profile.
+
+---
+
+# For developers
+
+Everything below is for people (and coding agents) working on the code. The site is plain static files in `docs/`, with no build step, backend, or runtime CDN dependency.
 
 ## Run locally
 
@@ -17,7 +117,34 @@ From the repository root, run:
 python3 -m http.server 8000 --bind 127.0.0.1 --directory docs
 ```
 
-Open <http://127.0.0.1:8000/>. The site has no build step, backend, or runtime CDN dependency. PDF.js 6.5.438 and fflate 0.8.3 are bundled under `docs/vendor/` with their licenses.
+Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under `docs/vendor/` with their licenses.
+
+## Project layout
+
+| Path | What it is |
+| --- | --- |
+| `docs/index.html`, `docs/styles.css` | The organizer page, with its Content Security Policy |
+| `docs/app.mjs` | The list: adding, renaming, reordering, removing, downloading |
+| `docs/previews.mjs` | First-page thumbnails, slide counts and sizes |
+| `docs/deck-viewer.mjs` | Which formats can be presented, and the blob-URL handoff to the presenter tab |
+| `docs/present.html`, `docs/present.mjs` | The presenter shell: bar, keys, blanking, slide picker, full screen |
+| `docs/deck-pdf.mjs`, `docs/deck-pptx.mjs` | One rendering engine per format, behind the presenter |
+| `docs/session-zip.mjs`, `docs/session-manifest.mjs`, `docs/session-import.mjs`, `docs/file-identity.mjs` | Writing a session ZIP and its `session.md`, and reading one back without listing a talk twice |
+| `docs/vendor/` | Bundled third-party code: PDF.js, fflate, web-ppt, with licenses |
+| `media/` | The demo video and screenshots this README embeds |
+| `demo-recorder/` | The rig that records the video and takes the screenshots; see its own README |
+
+## Publish with GitHub Pages
+
+The live site is the `/docs` folder of `main`, served by GitHub Pages at <https://lukestein.com/session-slides-organizer/>. To publish a copy, push `main` to a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, then choose **main** and **/docs** and save. GitHub will display the published URL. All asset paths are relative so the same files work under a project URL such as `https://OWNER.github.io/session-slides-organizer/`.
+
+The footer dates itself. GitHub Pages sets `Last-Modified` on every deploy, the browser hands it
+over as `document.lastModified`, and the page prints it as `Updated YYYY-MM-DD`. There is no build
+step to stamp a version into and nothing to bump by hand, so a screenshot of the page says which
+build it was, to the day. Served from a local folder the date is the file's own, which says the
+same thing locally; if a browser cannot tell, the stamp is left out rather than guessed.
+
+[GitHub Pages publishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
 ## Update the bundled libraries
 
@@ -48,27 +175,6 @@ Review upstream releases and security fixes, then choose exact versions of [PDF.
 
 Update the version numbers in this README and review the vendor diff. Keep PDF.js and its worker on the same version. Test a PDF thumbnail and page count, plus a PowerPoint deck with an embedded preview and slide count. Commit the updated files and licenses together.
 
-## To do
-
-- [x] Add one-click ZIP export with decks numbered and named in session order.
-- [ ] Test the PairDrop handoff on the classroom computer. **Receive with PairDrop** creates a temporary room in a separate tab. Set the classroom browser’s display name in PairDrop to **Presentation Computer** so presenters know which device to select. PairDrop saves the name in that browser profile. Have presenters join with the QR code or room code and send one deck at a time. Accept it in PairDrop, then return to the organizer and click **Import received files** or drop the downloaded deck into the list. The picker starts in Downloads where supported.
-- [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting in the browser** below. PowerPoint works locally; Keynote does not.
-- [ ] Decide whether to keep the in-browser presenter, given the bundle size, the CSP exceptions, and the age of the deck renderer. The PDF side rests on PDF.js, which the site already bundled.
-- [x] Explore a PDF presentation view with one page at a time and a fullscreen control. PDFs now use the same presenter as decks, with their links intact.
-- [x] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
-  on a fresh machine or in a new tab. Done as a `session.md` manifest rather than a page: carrying
-  the whole site would have added about 7 MB to every ZIP, and a page opened from `file://` cannot
-  load ES modules in Chrome, so it would not have run from the extracted folder anyway. See
-  **Reopening a session** below.
-- [ ] Consider a **Next talk** button in the presenter, in the top bar where the full-screen chrome
-  hides it, moving to the next presentation in the session in the same tab and skipping anything
-  the browser cannot render. The presenter is deliberately self-contained today: it reads the file
-  into memory up front so that closing the organizer tab cannot interrupt a talk. Reaching the
-  next file means asking the organizer tab for it at the moment of the click — through
-  `window.opener` or a `BroadcastChannel`, rather than a URL baked in when the presenter opened,
-  which would go stale as soon as the running order changed. So the button needs a sensible
-  disabled state for when that tab has gone.
-
 ## Presenting in the browser
 
 **Open in browser** opens the file in a new tab, so it can go to the projector while the list
@@ -80,30 +186,21 @@ one, since PDF.js is the engine Firefox ships.
 The presenter's own bar carries **Download**, which hands over the same numbered file the row
 would, and, for a PDF, **Open original**, which opens it in the browser's own viewer.
 
-### Presenter controls
+### Presenter behaviour
 
-| Key | Does |
-| --- | --- |
-| → ↓ Space Page Down | Next slide, or the next click-by-click build |
-| ← ↑ Page Up | Previous |
-| Home / End | First / last slide |
-| **B** / **W** | Blank the screen black or white, as in PowerPoint |
-| **G** | Show all slides as thumbnails along the bottom; click one to jump |
-| **?** or **/** | Show the keyboard guide |
-| **Esc** | Close the guide or the slide picker |
-
-For a PDF the arrows move a page at a time; for a deck they play the next click-by-click build
-before moving on, as PowerPoint does.
+The keys are in the table under **Presenter keyboard shortcuts** above. For a PDF the arrows move
+a page at a time; for a deck they play the next click-by-click build before moving on, as
+PowerPoint does.
 
 Clicking the outer eighth of either side moves a slide as well, except where a link sits there:
 a link takes its own click, so one at the very edge of a page is still reachable. Coming back
 from a blank screen returns to the slide that was up rather than moving on from it, so a key
 pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
 slide also lifts the picker into view, and it withdraws when the pointer leaves; opening it with
-**G** or the **Slides** button keeps it up until it is closed.
+**G** or the **All slides** button keeps it up until it is closed.
 
 Both the arrow pairs and the Page keys move, which covers the usual presentation clickers. The
-**Slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own
+**All slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own
 full screen; in full screen the bar hides until the pointer reaches the top.
 
 Thumbnails render only as they scroll into view, so a long deck does not pay for every slide when
@@ -127,7 +224,9 @@ hit the same flash in its issue #28; its `src/renderer/src/pdf.ts` is worth re-r
 turns ever need more work than this. PowerPoint needs none of it — web-ppt already builds each
 slide detached and swaps it in, which is also how it does transitions.
 
-### What works
+### Format support in detail
+
+What works:
 
 - PDFs, through the copy of PDF.js the site already bundles for thumbnails, so presenting them
   costs no extra download. Links keep working, internal jumps included.
@@ -138,7 +237,7 @@ slide detached and swaps it in, which is also how it does transitions.
   ZIPs, so there is no embedded thumbnail to lift out and `docs/previews.mjs` renders their first
   slide instead — which loads the deck renderer, but only for a file that needs it.
 
-### What does not
+What does not:
 
 - **Keynote cannot be rendered.** A `.key` file keeps its slides in Apple's undocumented IWA
   format (Snappy-compressed protobuf whose schema changes between Keynote releases), and no
@@ -215,7 +314,9 @@ From the repository root:
 Keep `@web-ppt/core` and `@web-ppt/viewer-core` on the same version. Test a `.pptx` with charts
 and pictures, a legacy `.ppt`, and confirm the browser console reports no CSP violations.
 
-## Reopening a session
+## Session manifest and import rules
+
+How the "Pick the session up again" behaviour above is built, and the edge cases it settles.
 
 Every session ZIP carries a `session.md` beside the decks — the running order, in Markdown, meant
 to be read:
@@ -276,14 +377,43 @@ should not overwrite a title just typed — and the archive's name is reported r
 silently. The adopted name behaves as a typed one: it names the file on the next export, and
 clearing the field still falls back to the filename.
 
-## Publish with GitHub Pages
+## Demo video and screenshots
 
-Push `main` to a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, then choose **main** and **/docs** and save. GitHub will display the published URL. All asset paths are relative so the same files work under a project URL such as `https://OWNER.github.io/session-slides-organizer/`.
+The video and screenshots at the top of this README live in `media/` and come from `demo-recorder/`,
+which drives a throwaway Chrome over the DevTools Protocol, so recording needs no macOS
+screen-recording or accessibility permission. Its own [README](demo-recorder/README.md) has the
+storyboard and the pitfalls already solved.
 
-The footer dates itself. GitHub Pages sets `Last-Modified` on every deploy, the browser hands it
-over as `document.lastModified`, and the page prints it as `Updated YYYY-MM-DD`. There is no build
-step to stamp a version into and nothing to bump by hand, so a screenshot of the page says which
-build it was, to the day. Served from a local folder the date is the file's own, which says the
-same thing locally; if a browser cannot tell, the stamp is left out rather than guessed.
+To retake the screenshots from the committed site:
 
-[GitHub Pages publishing instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+```sh
+cd demo-recorder
+./sync.sh                 # copy the site from main, plus the sample decks, into serve/
+node screenshots.mjs      # writes shots-readme/; copy the keepers into ../media/
+```
+
+The video (`media/demo.mp4`) was recorded on an earlier build, so it predates the session ZIP
+import and the footer, and its drop zone still says "PDF, PowerPoint, or Keynote". Retake it with
+`node demo.mjs --video`. Both the video and the screenshots show real slide content from the
+sample decks, so look at them before committing.
+
+## To do
+
+- [x] Add one-click ZIP export with decks numbered and named in session order.
+- [ ] Test the PairDrop handoff on the classroom computer. **Receive with PairDrop** creates a temporary room in a separate tab. Set the classroom browser’s display name in PairDrop to **Presentation Computer** so presenters know which device to select. PairDrop saves the name in that browser profile. Have presenters join with the QR code or room code and send one deck at a time. Accept it in PairDrop, then return to the organizer and click **Import received files** or drop the downloaded deck into the list. The picker starts in Downloads where supported.
+- [x] Explore opening PowerPoint and Keynote decks in a browser tab. See **Presenting in the browser** above. PowerPoint works locally; Keynote does not.
+- [ ] Decide whether to keep the in-browser presenter, given the bundle size, the CSP exceptions, and the age of the deck renderer. The PDF side rests on PDF.js, which the site already bundled.
+- [x] Explore a PDF presentation view with one page at a time and a fullscreen control. PDFs now use the same presenter as decks, with their links intact.
+- [x] Consider putting an `index.html` inside the session ZIP, so a session can be picked up again
+  on a fresh machine or in a new tab. Done as a `session.md` manifest rather than a page: carrying
+  the whole site would have added about 7 MB to every ZIP, and a page opened from `file://` cannot
+  load ES modules in Chrome, so it would not have run from the extracted folder anyway. See
+  **Session manifest and import rules** above.
+- [ ] Consider a **Next talk** button in the presenter, in the top bar where the full-screen chrome
+  hides it, moving to the next presentation in the session in the same tab and skipping anything
+  the browser cannot render. The presenter is deliberately self-contained today: it reads the file
+  into memory up front so that closing the organizer tab cannot interrupt a talk. Reaching the
+  next file means asking the organizer tab for it at the moment of the click — through
+  `window.opener` or a `BroadcastChannel`, rather than a URL baked in when the presenter opened,
+  which would go stale as soon as the running order changed. So the button needs a sensible
+  disabled state for when that tab has gone.
