@@ -2,9 +2,7 @@
 
 **Hosted at <https://lukestein.com/session-slides-organizer/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
 
-[![Watch the 43-second demo: four talks dropped into the organizer, reordered and renamed, presented from the browser, and downloaded as a session ZIP](media/demo-poster.jpg)](media/demo.mp4)
-
-▶ *Click the picture to watch the 43-second demo.*
+https://github.com/user-attachments/assets/0424ca34-b8d7-4a1c-bff1-3750d22f6146
 
 A small web tool for whoever runs a conference session, a seminar, or a panel. When several speakers share one room computer, the usual scramble is a pile of files in Downloads, a different app for each format, and a laptop-swap between every talk. Here you put all the decks in one list, put them in speaking order, and open each one at its turn. PDFs, PowerPoint decks and Keynote files all go in the same list.
 
