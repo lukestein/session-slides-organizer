@@ -4,6 +4,7 @@ import { readLooseSession, readSessionZip } from "./session-import.mjs";
 import { isManifestName, parseManifest } from "./session-manifest.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
 import { findDuplicate } from "./file-identity.mjs";
+import { fetchGooglePdf, fetchGooglePreview, googlePdfUrl, parseLink } from "./links.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -30,6 +31,10 @@ const archive = document.querySelector("#session-archive");
 const zipDetails = document.querySelector("#zip-details");
 const zipName = document.querySelector("#zip-name");
 const deckCaveat = document.querySelector("#deck-caveat");
+const linkCaveat = document.querySelector("#link-caveat");
+const googleCaveat = document.querySelector("#google-caveat");
+const linkField = document.querySelector("#link");
+const addLinkButton = document.querySelector("#add-link");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -71,6 +76,7 @@ function downloadName(slide, index, width = 1) {
 }
 
 function updateDownload(slide, index) {
+  if (!slide.file) return;
   const name = downloadName(slide, index);
   slide.download.download = name;
   // The presenter offers the same download, so it needs the same name, which
@@ -78,13 +84,21 @@ function updateDownload(slide, index) {
   if (slide.presentable) slide.open.href = presentUrl(slide.url, slide.friendlyName, name, slide.file.name);
 }
 
+// Every talk in order, for the manifest. A talk that lives online has no file
+// and so no name in the ZIP, but keeps its position, so the numbers on the
+// files still match the running order.
 function sessionFiles() {
   const width = String(slides.length).length;
   return slides.map((slide, index) => ({
     file: slide.file,
-    name: downloadName(slide, index, width),
+    name: slide.file ? downloadName(slide, index, width) : "",
     title: slide.friendlyName,
+    link: slide.link?.url ?? "",
   }));
+}
+
+function plural(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function formatSize(bytes) {
@@ -96,13 +110,17 @@ function updateArchive() {
   archive.hidden = count === 0;
   if (count) {
     const size = formatSize(sessionZipSize(archiveStem(), sessionFiles()));
-    zipDetails.textContent = `${count} ${count === 1 ? "file" : "files"} (${size})`;
+    const files = slides.filter(slide => slide.file).length;
+    const parts = [files && plural(files, "file"), count - files && plural(count - files, "link")];
+    zipDetails.textContent = `${parts.filter(Boolean).join(", ")} (${size})`;
   }
 }
 
 function updateList() {
   list.hidden = slides.length === 0;
   deckCaveat.hidden = !slides.some(slide => needsCaveat(slide.extension));
+  linkCaveat.hidden = !slides.some(slide => !slide.file);
+  googleCaveat.hidden = !slides.some(slide => slide.file && slide.link);
   updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
@@ -136,6 +154,10 @@ function announceMove(slide) {
 }
 
 function setMetadata(slide, count, unit) {
+  if (!slide.file) {
+    slide.metadata.textContent = `(${slide.link.service})`;
+    return;
+  }
   const size = formatSize(slide.file.size);
   const quantity = count ? `${count} ${unit}${count === 1 ? "" : "s"}, ` : "";
   slide.metadata.textContent = `(${quantity}${size})`;
@@ -155,11 +177,23 @@ function removeSlide(slide) {
   const index = slides.indexOf(slide);
   slides.splice(index, 1);
   slide.row.remove();
-  URL.revokeObjectURL(slide.url);
-  if (slide.previewUrl) URL.revokeObjectURL(slide.previewUrl);
+  releaseUrls(slide);
   updateList();
   (slides[index]?.title ?? slides[index - 1]?.title ?? browse).focus();
   announce(`${slide.friendlyName} removed.`);
+}
+
+function releaseUrls(slide) {
+  if (slide.url) URL.revokeObjectURL(slide.url);
+  if (slide.previewUrl) URL.revokeObjectURL(slide.previewUrl);
+}
+
+function showPreview(slide, blob) {
+  if (slide.previewUrl) URL.revokeObjectURL(slide.previewUrl);
+  slide.previewUrl = URL.createObjectURL(blob);
+  const image = slide.row.querySelector("img");
+  image.addEventListener("load", () => { image.hidden = false; }, { once: true });
+  image.src = slide.previewUrl;
 }
 
 function queuePreview(slide, extension) {
@@ -169,16 +203,150 @@ function queuePreview(slide, extension) {
       if (slide.row.isConnected) setMetadata(slide, count, unit);
     });
     if (!preview || !slide.row.isConnected) return;
-    slide.previewUrl = URL.createObjectURL(preview);
-    const image = slide.row.querySelector("img");
-    image.addEventListener("load", () => { image.hidden = false; }, { once: true });
-    image.src = slide.previewUrl;
+    showPreview(slide, preview);
   }).catch(() => {
     // Keep the file-type label when a preview is missing or unreadable.
   });
 }
 
-function makeRow(file, extension, presetTitle) {
+// A link row opens on its own site and has nothing to download. For Google
+// Slides, the empty thumbnail offers a preview and Get PDF takes the place of
+// Download; both ask Google, so neither happens until someone clicks.
+function makeLinkControls(slide, { thumbnail, openPdf, download, getPdf }) {
+  const { link } = slide;
+  openPdf.textContent = "Open link";
+  openPdf.href = link.url;
+  openPdf.rel = "noopener noreferrer";
+  openPdf.title = `Opens in ${link.service}`;
+  openPdf.setAttribute("aria-label", `Open link: ${link.display}`);
+  download.hidden = true;
+  thumbnail.classList.add("link-thumbnail");
+  thumbnail.insertAdjacentHTML("afterbegin", globe);
+  if (!link.googleId) return;
+
+  // The preview and the deck's name come in one small request, made as soon
+  // as the link is added. If it fails — a private deck, or no network yet —
+  // the web icon stays, and becomes a button to try again.
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "preview-button";
+  retry.title = "Couldn’t load a preview from Google. Click to try again.";
+  retry.setAttribute("aria-label", `Try again to load a preview of ${link.display} from Google`);
+  retry.append(Object.assign(document.createElement("span"), { textContent: "Retry" }));
+  retry.hidden = true;
+  thumbnail.prepend(retry);
+  retry.addEventListener("click", async () => {
+    if (!await loadGooglePreview(slide, retry)) showProblem(googleRefusal(slide, "a preview"));
+  });
+  loadGooglePreview(slide, retry);
+
+  getPdf.hidden = false;
+  getPdf.setAttribute("aria-label", `Get a PDF of ${link.display} from Google`);
+  getPdf.addEventListener("click", () => importGooglePdf(slide, getPdf));
+}
+
+async function loadGooglePreview(slide, retry) {
+  retry.disabled = true;
+  try {
+    const { image, name } = await fetchGooglePreview(slide.link.googleId);
+    if (!slide.row.isConnected) return true;
+    showPreview(slide, image);
+    if (name) adoptDeckName(slide, name);
+    retry.remove();
+    slide.row.querySelector(".link-thumbnail svg")?.remove();
+    return true;
+  } catch {
+    if (!slide.row.isConnected) return true;
+    // Reachable now, so the icon says it can be clicked.
+    retry.disabled = false;
+    retry.hidden = false;
+    retry.parentElement.removeAttribute("aria-hidden");
+    retry.prepend(slide.row.querySelector(".link-thumbnail svg"));
+    return false;
+  }
+}
+
+// The deck's own name replaces the service's as the fallback title, the same
+// part a filename plays for a dropped file: a title someone typed or brought in
+// a session stays, and clearing the field returns to this.
+function adoptDeckName(slide, name) {
+  slide.defaultTitle = name.slice(0, slide.title.maxLength);
+  slide.title.placeholder = slide.defaultTitle;
+  if (slide.named) return;
+  slide.friendlyName = slide.defaultTitle;
+  slide.title.defaultValue = slide.defaultTitle;
+  if (document.activeElement !== slide.title) slide.title.value = slide.defaultTitle;
+  updateList();
+}
+
+// Google will not hand a private deck to a page, and says so only by failing.
+// The way round is the user's own browser, signed in, which downloads the PDF
+// to be dropped in like any other.
+function googleRefusal(slide, what) {
+  const message = document.createDocumentFragment();
+  const fallback = Object.assign(document.createElement("a"), {
+    href: googlePdfUrl(slide.link.googleId),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    textContent: "Download the PDF from Google",
+  });
+  message.append(
+    `Google didn’t send ${what} of ${slide.named ? `“${slide.friendlyName}”` : "this deck"}. `
+      + "It only does for a deck shared with "
+      + "anyone who has the link, and it needs the internet. ",
+    fallback,
+    " instead, signed in to Google, then drop the file here.",
+  );
+  return message;
+}
+
+function showProblem(content) {
+  error.replaceChildren(content);
+  error.hidden = false;
+}
+
+async function importGooglePdf(slide, button) {
+  button.disabled = true;
+  button.textContent = "Getting…";
+  announce(`Getting a PDF of ${slide.friendlyName} from Google.`);
+  let file;
+  try {
+    file = await fetchGooglePdf(slide.link.googleId);
+  } catch {
+    button.disabled = false;
+    button.textContent = "Get PDF";
+    if (slide.row.isConnected) showProblem(googleRefusal(slide, "a PDF"));
+    return;
+  }
+  const index = slides.indexOf(slide);
+  if (index < 0) return;
+  // The PDF takes the link's place in the list, keeping its position and any
+  // title someone typed; an untouched title gives way to the deck's own name.
+  const replacement = makeRow({
+    file,
+    extension: "pdf",
+    link: slide.link,
+    presetTitle: slide.named ? slide.friendlyName : "",
+  });
+  slides[index] = replacement;
+  slide.row.replaceWith(replacement.row);
+  releaseUrls(slide);
+  queuePreview(replacement, "pdf");
+  updateList();
+  error.hidden = true;
+  notice.hidden = true;
+  replacement.open.focus();
+  announce(`${replacement.friendlyName} is now a PDF in this list.`);
+}
+
+const globe = `<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>
+</svg>`;
+
+// A row holds a file, a link, or both: a PDF fetched from Google Slides
+// remembers where it came from. `link` is what parseLink() returns.
+function makeRow({ file = null, extension = "", link = null, presetTitle = "" }) {
   const row = template.content.firstElementChild.cloneNode(true);
   const title = row.querySelector(".title");
   const handle = row.querySelector(".order");
@@ -187,33 +355,63 @@ function makeRow(file, extension, presetTitle) {
   const filename = row.querySelector(".filename");
   const openPdf = row.querySelector(".open-pdf");
   const download = row.querySelector(".download");
-  const isPdf = extension === "pdf";
-  const source = isPdf && file.type !== "application/pdf"
-    ? file.slice(0, file.size, "application/pdf")
-    : file;
-  const url = URL.createObjectURL(source);
-  const fromFilename = file.name.slice(0, -(extension.length + 1)).trim() || file.name;
+  const getPdf = row.querySelector(".get-pdf");
+  const thumbnail = row.querySelector(".thumbnail");
+  let url = "";
+  let fromFilename = link?.service ?? "";
+  if (file) {
+    const source = extension === "pdf" && file.type !== "application/pdf"
+      ? file.slice(0, file.size, "application/pdf")
+      : file;
+    url = URL.createObjectURL(source);
+    fromFilename = file.name.slice(0, -(extension.length + 1)).trim() || file.name;
+  }
+  const label = file?.name ?? link.display;
   const defaultTitle = (presetTitle?.trim() || fromFilename).slice(0, title.maxLength);
   const metadata = row.querySelector(".metadata");
   // `named` records that this talk has a name someone chose — typed here, or
   // carried in a session manifest — as opposed to the stem of its filename.
-  const slide = { row, file, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: canPresent(extension) };
+  const slide = { row, file, link, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: Boolean(file) && canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
   setMetadata(slide);
-  filename.textContent = file.name;
-  filename.title = file.name;
-  row.querySelector(".thumbnail span").textContent = formats[extension];
+  filename.textContent = label;
+  filename.title = file ? file.name : link.url;
+  thumbnail.querySelector("span").textContent = file ? formats[extension] : "";
 
-  title.setAttribute("aria-label", `Title for ${file.name}`);
-  handle.setAttribute("aria-label", `Reorder ${file.name} with the arrow keys`);
-  remove.setAttribute("aria-label", `Remove ${file.name}`);
-  openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
-  download.setAttribute("aria-label", `Download ${file.name}`);
+  title.setAttribute("aria-label", `Title for ${label}`);
+  handle.setAttribute("aria-label", `Reorder ${label} with the arrow keys`);
+  remove.setAttribute("aria-label", `Remove ${label}`);
+  remove.title = file ? "Remove file" : "Remove link";
+
+  if (file) {
+    openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
+    download.setAttribute("aria-label", `Download ${file.name}`);
+    if (link) {
+      // The dagger points at the note on what a PDF from Google leaves out.
+      for (const button of [openPdf, download]) {
+        button.append(Object.assign(document.createElement("b"), {
+          textContent: "†", ariaHidden: "true",
+        }));
+      }
+      openPdf.setAttribute("aria-label",
+        `Open in browser: ${file.name}. Saved from Google Slides, without animations, video or audio.`);
+      download.setAttribute("aria-label",
+        `Download ${file.name}. Saved from Google Slides, without animations, video or audio.`);
+      // Where the PDF came from, for presenting from the live deck instead.
+      const source = row.querySelector(".source-link");
+      source.href = link.url;
+      source.textContent = `${link.service} ↗`;
+      source.setAttribute("aria-label", `Open the original in ${link.service}`);
+      source.hidden = false;
+    }
+  } else {
+    makeLinkControls(slide, { thumbnail, openPdf, download, getPdf });
+  }
 
   const { presentable } = slide;
-  openPdf.hidden = !presentable;
+  openPdf.hidden = !presentable && !link;
   if (needsCaveat(extension)) {
     // The asterisk points at the rendering caveat below the list.
     openPdf.append(Object.assign(document.createElement("b"), {
@@ -225,12 +423,12 @@ function makeRow(file, extension, presetTitle) {
   // Every format goes to the presenter: PDFs for the slide picker and blanking,
   // decks because a blob URL would only download them again. updateDownload()
   // fills in the href, since it depends on the position.
-  download.href = url;
+  if (file) download.href = url;
   download.draggable = false;
 
   title.addEventListener("input", () => {
     if (title.value.trim()) slide.named = true;
-    slide.friendlyName = title.value.trim() || defaultTitle;
+    slide.friendlyName = title.value.trim() || slide.defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
     updateArchive();
@@ -268,7 +466,7 @@ function makeRow(file, extension, presetTitle) {
   remove.addEventListener("click", () => removeSlide(slide));
   row.addEventListener("pointerdown", event => {
     if (drag || !event.isPrimary || event.button !== 0) return;
-    if (event.target.closest("input, a, .remove")) return;
+    if (event.target.closest("input, a, .remove, .get-pdf, .preview-button")) return;
     if (event.pointerType !== "mouse" && !handle.contains(event.target)) return;
     drag = {
       slide,
@@ -289,28 +487,44 @@ function supported(extension) {
   return Object.hasOwn(formats, extension);
 }
 
-// Entries are { file, title }; a title of its own is what a session ZIP brings
-// back, and everything else leaves it empty and takes the filename.
+// The talk already listed that `link` points at, if any. A fetched PDF still
+// counts, so a link pasted again does not bring back the deck it became.
+function findLink(link) {
+  return link && slides.find(slide => slide.link?.key === link.key);
+}
+
+// Entries are { file, title, link }, with a file, a link, or both; a title of
+// its own is what a session ZIP brings back, and everything else leaves it
+// empty and takes the filename.
 async function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
   let added = 0;
   const repeats = [];
   const adopted = [];
   const kept = [];
-  for (const { file, title } of entries) {
-    const extension = /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase();
-    if (!supported(extension) || file.size === 0) {
+  const badLinks = [];
+  for (const { file, title, link: address } of entries) {
+    // A link from a hand-edited manifest is checked like a pasted one, so
+    // nothing but an http(s) address ever becomes something to click.
+    const link = address ? parseLink(address) : null;
+    if (address && !link) badLinks.push(address);
+    if (!file && !link) continue;
+    // An untitled link goes into session.md under its service's name, which
+    // is a placeholder rather than a name anyone chose.
+    const chosenTitle = !file && title === link.service ? "" : title;
+    const extension = file ? /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase() : "";
+    if (file && (!supported(extension) || file.size === 0)) {
       rejected.push(file.name);
       continue;
     }
     // Against the list as it stands, which grows as this loop runs, so a drop
     // carrying the same file twice is caught alongside one that repeats a talk
     // already listed.
-    const repeat = await findDuplicate(file, slides);
+    const repeat = (file && await findDuplicate(file, slides)) || findLink(link);
     if (repeat) {
       // The file is already here, so only its name is in question. A name
       // someone chose beats one taken from a filename, and when both sides have
       // one the list wins, because it is what is on screen and being edited.
-      const chosen = (title || "").trim();
+      const chosen = (chosenTitle || "").trim();
       if (!chosen || chosen === repeat.friendlyName) {
         repeats.push(repeat.friendlyName);
       } else if (repeat.named) {
@@ -321,14 +535,17 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
       }
       continue;
     }
-    const slide = makeRow(file, extension, title);
+    const slide = makeRow({ file, extension, link, presetTitle: chosenTitle });
     slides.push(slide);
     list.append(slide.row);
-    queuePreview(slide, extension);
+    if (file) queuePreview(slide, extension);
     added++;
   }
   updateList();
   const messages = [...problems];
+  if (badLinks.length) {
+    messages.push(`Couldn’t add ${badLinks.join(", ")}. That isn’t a web address this can open.`);
+  }
   if (rejected.length) {
     messages.push(`Couldn’t add ${rejected.join(", ")}. Choose a PDF, PowerPoint, or Keynote file.`);
   }
@@ -349,7 +566,7 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
   }
   notice.hidden = notices.length === 0;
   notice.textContent = notices.join(" ");
-  if (added) announce(`${added} ${added === 1 ? "file" : "files"} added.${note}`);
+  if (added) announce(`${added} ${added === 1 ? "talk" : "talks"} added.${note}`);
   else if (notices.length) announce(notice.textContent);
   return added;
 }
@@ -404,8 +621,16 @@ async function addFiles(files) {
     }
   }
 
-  if (loose.length) {
+  // A running order dropped on its own can still bring back the talks that
+  // live online; it is only empty-handed when it names nothing but files.
+  const onlineOnly = !loose.length && manifestText
+    && parseManifest(manifestText).order.some(({ link }) => link);
+  if (loose.length || onlineOnly) {
     const session = readLooseSession(manifestText, loose, supported);
+    if (looseGroup < 0) {
+      looseGroup = groups.length;
+      groups.push([]);
+    }
     groups[looseGroup] = session.entries;
     unaccounted.push(...session.missing);
     restored ||= session.ordered;
@@ -493,8 +718,21 @@ list.addEventListener("pointerup", finishDrag);
 list.addEventListener("pointercancel", finishDrag);
 list.addEventListener("lostpointercapture", finishDrag);
 
+// A link dragged in from another tab's address bar or page counts as much as
+// a file. One dragged from this page — the footer, say — does not.
+let draggingFromPage = false;
+document.addEventListener("dragstart", () => { draggingFromPage = true; });
+document.addEventListener("dragend", () => { draggingFromPage = false; });
+
 function hasFiles(event) {
-  return event.dataTransfer?.types.includes("Files");
+  const types = event.dataTransfer?.types ?? [];
+  return types.includes("Files") || (!draggingFromPage && types.includes("text/uri-list"));
+}
+
+function addLinks(text) {
+  const addresses = text.split(/\r?\n/).map(line => line.trim()).filter(line => line && !line.startsWith("#"));
+  if (!addresses.length) return Promise.resolve(0);
+  return addEntries(addresses.map(link => ({ link, title: "" })));
 }
 
 window.addEventListener("dragenter", event => {
@@ -518,7 +756,47 @@ window.addEventListener("drop", event => {
   event.preventDefault();
   fileDragDepth = 0;
   zone.classList.remove("active");
-  addFiles(event.dataTransfer.files);
+  if (event.dataTransfer.files.length) addFiles(event.dataTransfer.files);
+  else addLinks(event.dataTransfer.getData("text/uri-list"));
+});
+
+async function addTypedLink() {
+  const text = linkField.value.trim();
+  if (!text) {
+    linkField.focus();
+    return;
+  }
+  if (!parseLink(text)) {
+    showProblem("That doesn’t look like a web link. Copy it from the address bar, starting with https://.");
+    linkField.focus();
+    return;
+  }
+  await addLinks(text);
+  linkField.value = "";
+}
+addLinkButton.addEventListener("click", addTypedLink);
+linkField.addEventListener("keydown", event => {
+  if (event.key === "Enter" && !event.isComposing) {
+    event.preventDefault();
+    addTypedLink();
+  }
+});
+
+// Pasting a link anywhere on the page adds it, as long as no text field has
+// the focus; files on the clipboard come in as a drop would.
+document.addEventListener("paste", event => {
+  if (event.target.closest?.("input, textarea, [contenteditable]")) return;
+  const files = event.clipboardData?.files;
+  if (files?.length) {
+    event.preventDefault();
+    addFiles(files);
+    return;
+  }
+  const text = (event.clipboardData?.getData("text/plain") ?? "").trim();
+  if (text && text.split(/\r?\n/).filter(Boolean).every(line => parseLink(line))) {
+    event.preventDefault();
+    addLinks(text);
+  }
 });
 
 browse.addEventListener("click", () => picker.click());

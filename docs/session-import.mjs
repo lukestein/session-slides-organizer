@@ -41,8 +41,8 @@ async function readZip(file) {
 /**
  * Puts candidate files into the order a manifest asks for, renaming each to
  * drop its positional prefix. Candidates are { name, file }; the result's
- * entries are { file, title }, where an empty title means the manifest did not
- * name that file. This is the one place the running order is applied, so a ZIP
+ * entries are { file, title, link }, where an empty title means the manifest
+ * did not name that file. A talk that lives online has a link and no file. This is the one place the running order is applied, so a ZIP
  * and a folder of its contents cannot drift apart.
  */
 export function orderBySession(manifest, candidates) {
@@ -56,7 +56,7 @@ export function orderBySession(manifest, candidates) {
   const entries = [];
   const missing = [];
 
-  const take = (candidate, title) => {
+  const take = (candidate, title, link = "") => {
     taken.add(candidate);
     // The numbering is positional, so it comes off: position is the list's job,
     // and it is reapplied on the way out.
@@ -69,16 +69,21 @@ export function orderBySession(manifest, candidates) {
       // tell those apart to know whose name to trust.
       file: plain === file.name ? file : new File([file], plain, { type: file.type }),
       title,
+      link,
     });
   };
 
-  for (const { title, name } of manifest.order) {
-    const candidate = byFilename.get(basename(name).toLowerCase());
-    if (!candidate || taken.has(candidate)) {
+  for (const { title, name, link } of manifest.order) {
+    const candidate = name && byFilename.get(basename(name).toLowerCase());
+    if (candidate && !taken.has(candidate)) {
+      take(candidate, title, link);
+    } else if (link) {
+      // Online only, or a PDF fetched from a link that has since gone from the
+      // folder: either way the link still gets the talk back.
+      entries.push({ title, link });
+    } else {
       missing.push(name);
-      continue;
     }
-    take(candidate, title);
   }
 
   // Whatever the manifest did not account for, by filename, which is the order

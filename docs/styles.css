@@ -58,7 +58,7 @@ h1, h2, p { margin: 0; }
   line-height: 1.5;
 }
 .caveat b { font-weight: 700; }
-.open-pdf b { font-weight: 700; margin-left: .1em; }
+.open-pdf b, .download b { font-weight: 700; margin-left: .1em; }
 footer { padding-block: 1.35rem 2rem; color: var(--muted); font-size: .8rem; }
 footer a { color: var(--accent); text-underline-offset: .15em; }
 
@@ -134,6 +134,21 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .receive-actions :is(a, button):is(:hover, :focus-visible) { color: var(--accent); }
 .drop-copy h2 { font-size: 1.1rem; letter-spacing: -.025em; }
 .drop-copy p { margin-top: .25rem; color: var(--muted); font-size: .9rem; }
+.link-entry { display: flex; gap: .4rem; max-width: 34rem; margin-top: .6rem; }
+.link-entry input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2.25rem;
+  padding: .3rem .55rem;
+  border: 1px solid #c9d7c8;
+  border-radius: .45rem;
+  background: #fff;
+  color: var(--ink);
+  font-size: .85rem;
+}
+.link-entry input::placeholder { color: #727e75; opacity: 1; }
+.link-entry input:hover { border-color: #7f9f88; }
+.link-entry .button { min-height: 2.25rem; padding-block: .3rem; font-size: .8rem; }
 
 .button {
   display: inline-flex;
@@ -244,7 +259,31 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   align-items: center;
   gap: .4rem;
 }
-.download { grid-column: 2; }
+.download, .get-pdf { grid-column: 2; }
+.get-pdf:disabled { cursor: wait; opacity: .7; }
+.link-thumbnail { background: #f5f7f3; color: #6f8a78; }
+.preview-button {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: .62rem;
+  font-weight: 650;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+.preview-button span { opacity: 0; transition: opacity .12s; }
+.preview-button:is(:hover, :focus-visible) { background: #edf4eb; color: var(--accent); }
+.preview-button:is(:hover, :focus-visible) span { opacity: 1; }
+.preview-button:disabled { cursor: wait; opacity: .6; }
+.source-link { color: var(--muted); white-space: nowrap; text-underline-offset: .15em; }
+.source-link:hover { color: var(--accent); }
 .actions .button { height: 2.75rem; }
 .icon-button {
   display: grid;
@@ -261,6 +300,7 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .icon-button:hover { color: #9d2544; background: #fff0f4; }
 .error { margin-top: 1rem; font-size: .84rem; line-height: 1.5; }
 .error { color: #9d2544; }
+.error a { color: inherit; text-underline-offset: .15em; font-weight: 650; }
 .notice { margin-top: 1rem; color: var(--muted); font-size: .84rem; line-height: 1.5; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 

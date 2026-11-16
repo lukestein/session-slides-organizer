@@ -46,7 +46,7 @@ export function fingerprint(file) {
  * free for the ordinary case where nothing could match.
  */
 export async function findDuplicate(file, candidates) {
-  const rivals = candidates.filter(candidate => candidate.file.size === file.size);
+  const rivals = candidates.filter(candidate => candidate.file?.size === file.size);
   if (!rivals.length) return null;
   const mark = await fingerprint(file);
   if (!mark) return null;

@@ -18,8 +18,12 @@ export function isManifestName(filename) {
 
 // "1. **Opening paper** — `1. Opening paper.pptx`". The title may be bold or
 // plain, the dash may be any of the three, and a line carrying only a filename
-// still counts, so a hand-edited file is unlikely to be rejected.
-const entryPattern = /^\s*\d+[.)]\s*(.*?)\s*(?:[—–-]\s*)?`([^`]+)`\s*$/;
+// still counts, so a hand-edited file is unlikely to be rejected. A talk that
+// lives online carries its address in angle brackets where the filename would
+// be, and a PDF fetched from one carries both: "`2. Keynote.pdf` from <https://…>".
+const entryPattern = /^\s*\d+[.)]\s*(.*)$/;
+const filenamePattern = /`([^`]+)`/;
+const linkPattern = /<(https?:\/\/[^>\s]+)>|(https?:\/\/\S+)/i;
 
 function stripEmphasis(text) {
   return text.replace(/^\*\*(.*)\*\*$/, "$1").replace(/^\*(.*)\*$/, "$1").trim();
@@ -43,11 +47,13 @@ export function buildManifest(sessionName, entries) {
     "Reordering the list below, or rewriting a title, changes what the import does.",
     "",
   ];
-  entries.forEach(({ title, name }, index) => {
+  entries.forEach(({ title, name, link }, index) => {
     // Fall back to the file's own name, so a missing title never reads
     // "undefined" in a file someone is meant to be able to read.
-    const shown = (title || "").trim() || stripPosition(name).replace(/\.[^.]+$/, "");
-    lines.push(`${index + 1}. **${shown}** — \`${name}\``);
+    const shown = (title || "").trim()
+      || (name ? stripPosition(name).replace(/\.[^.]+$/, "") : "Online slides");
+    const where = [name && `\`${name}\``, link && `<${link}>`].filter(Boolean).join(" from ");
+    lines.push(`${index + 1}. **${shown}** — ${where}`);
   });
   return `${lines.join("\n")}\n`;
 }
@@ -61,11 +67,20 @@ export function parseManifest(text) {
       sessionName = heading[1];
       continue;
     }
-    const entry = entryPattern.exec(line);
+    const entry = entryPattern.exec(line)?.[1];
     if (!entry) continue;
-    const name = entry[2].trim();
-    const title = stripEmphasis(entry[1]) || stripPosition(name).replace(/\.[^.]+$/, "");
-    order.push({ title, name });
+    const filename = filenamePattern.exec(entry);
+    const link = linkPattern.exec(entry);
+    if (!filename && !link) continue;
+    // The title is whatever comes before the filename or the address, less
+    // the dash that separates them.
+    const start = Math.min(filename?.index ?? Infinity, link?.index ?? Infinity);
+    const before = stripEmphasis(entry.slice(0, start).replace(/\s*[—–-]?\s*$/, ""));
+    const name = filename?.[1].trim() ?? "";
+    const title = before || (name ? stripPosition(name).replace(/\.[^.]+$/, "") : "");
+    // A bare address typed by hand may run into the punctuation after it.
+    const address = link ? (link[1] ?? link[2].replace(/[.,;:!?)\]]+$/, "")) : "";
+    order.push({ title, name, link: address });
   }
   return { sessionName, order };
 }

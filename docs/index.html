@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="description" content="Arrange conference slides and open each talk from one list.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob: https://docs.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Session Slides Organizer</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
@@ -31,6 +31,11 @@
       <div class="drop-copy">
         <h2>Drop slides here</h2>
         <p>PDF, PowerPoint, Keynote, or a session ZIP</p>
+        <div class="link-entry">
+          <input type="url" id="link" placeholder="Or paste a link to Google Slides or other online slides"
+            aria-label="Link to online slides" autocomplete="off" spellcheck="false">
+          <button type="button" class="button" id="add-link">Add link</button>
+        </div>
       </div>
       <div class="receive-actions">
         <a href="https://pairdrop.net/?init=public_room" target="_blank" rel="noopener noreferrer">Receive with PairDrop</a>
@@ -60,6 +65,11 @@
 
     <p class="caveat" id="deck-caveat" hidden><b aria-hidden="true">*</b> Decks open in a built-in
       viewer and may not match PowerPoint exactly. Download one to present from PowerPoint itself.</p>
+    <p class="caveat" id="google-caveat" hidden><b aria-hidden="true">†</b> Saved from Google Slides as
+      a PDF: each slide appears in its finished state, without animations or transitions, and video
+      and audio don’t play.</p>
+    <p class="caveat" id="link-caveat" hidden>Links open on their own site and need the internet.
+      For Google Slides, <b>Get PDF</b> keeps a copy here for offline use.</p>
   </main>
 
   <footer class="shell">Made with love and AI by <a href="https://lukestein.com" target="_blank"
@@ -76,11 +86,13 @@
       <div class="thumbnail" aria-hidden="true"><span></span><img alt="" hidden></div>
       <div class="slide-name">
         <input class="title" type="text" maxlength="180" autocomplete="off" spellcheck="false">
-        <div class="file-details"><span class="filename"></span><span class="metadata"></span></div>
+        <div class="file-details"><span class="filename"></span><span class="metadata"></span><a class="source-link" target="_blank" rel="noopener noreferrer" draggable="false" hidden></a></div>
       </div>
       <div class="actions">
         <a class="button primary open-pdf" target="_blank" rel="noopener" draggable="false">Open in browser</a>
         <a class="button download" download>Download</a>
+        <button type="button" class="button get-pdf" hidden
+          title="Fetch a PDF copy from Google, so the talk works offline and goes in the ZIP">Get PDF</button>
       </div>
       <button type="button" class="icon-button remove" title="Remove file">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
