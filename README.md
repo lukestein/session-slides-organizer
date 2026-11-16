@@ -442,10 +442,12 @@ cd demo-recorder
 node screenshots.mjs      # writes shots-readme/; copy the keepers into ../media/
 ```
 
-The video (`media/demo.mp4`) was recorded on an earlier build, so it predates the session ZIP
-import and the footer, and its drop zone still says "PDF, PowerPoint, or Keynote". Retake it with
-`node demo.mjs --video`. Both the video and the screenshots show real slide content from the
-sample decks, so look at them before committing.
+The video (`media/demo.mp4`) shows the build with online decks: it pastes a Google Slides link,
+fetches its PDF, and drops the session ZIP back into a fresh tab. The README plays a copy uploaded
+to GitHub, so after a retake, drag the new file into any GitHub comment box and swap the
+`user-attachments` URL at the top of this file. Retake it with `node demo.mjs --video`. Both the
+video and the screenshots show real slide content from the sample decks, and the video also
+shows a real Google Slides deck, so look at them before committing.
 
 ## To do
 

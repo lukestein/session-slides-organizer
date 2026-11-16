@@ -62,11 +62,23 @@ One beat per block in `demo.mjs`, runnable alone with `--beats=`:
 | --- | --- |
 | `drop1` | one deck drifts in from off-frame, the drop zone lights up, a row appears with thumbnail, page count and size |
 | `drop3` | three more arrive as a stack with a count badge — PDF, PowerPoint and Keynote together |
+| `link` | a Google Slides address pasted into the field under the drop zone, then **Add link**. The preview and the deck's own name arrive from Google; the wait for them is cut |
 | `reorder` | the PowerPoint is dragged from third to second, so the list reads paper, discussion, paper, discussion |
-| `rename` | one click into the first title, then **Tab** along the row — the app moves focus and selects the next title itself — retitling all four to Paper A / Discussion A / Paper B / Discussion B, original filenames still visible underneath |
-| `pdf` | **Open in browser** on a PDF. The **?** shortcut card first, over the cover slide, naming the keys the rest of the beat then uses; arrow keys page by page to slide 5; its link out to the regression table on 15 and the link back; another arrow; then two jumps through the **G** picker. The pointer is parked against the right edge and hidden while slides are up — visible only for the link clicks, which are the point — and reaches the picker down the edge and in along the strip so it never crosses a slide |
-| `pptx` | the same presenter on a PowerPoint, briefly — the controls are identical |
+| `rename` | one click into the first title, then **Tab** along the row — the app moves focus and selects the next title itself — retitling the four files to Paper A / Discussion A / Paper B / Discussion B, original filenames still visible underneath |
+| `pdf` | **Open in browser** on a PDF. The **?** shortcut card over the cover slide, then **G** and a click straight to slide 5, its link out to the regression table on 15 and the link back. The pointer is parked against the right edge and hidden while slides are up — visible only for the clicks |
+| `pptx` | the same presenter on a PowerPoint, briefly: one click forward |
+| `getpdf` | **Get PDF** on the Google row, which becomes an ordinary PDF row with its † and a link back to Google Slides; the download is cut |
 | `zip` | the session ZIP renamed to "Corporate finance 11am" and downloaded |
+| `import` | a fresh, empty organizer in a new tab, and that ZIP drifting back in from off-frame: order, titles and session name return |
+
+The Google deck is Luke's own, shared with anyone who has the link, and its address, title and
+first slide are all on screen. The `link` and `getpdf` beats need the network.
+
+### Cutting out the waits
+
+`rec.cut(work)` runs `work` and drops whatever was captured meanwhile, so waiting on Google or on a
+new tab reads as a straight cut, and the frames after it move up in time. The video runs about
+48 seconds; the take itself, about 52.
 
 ## How it works
 
@@ -97,6 +109,11 @@ One beat per block in `demo.mjs`, runnable alone with `--beats=`:
   over from an earlier run hold it, and the delete fails with `ENOTEMPTY` before
   the run starts — which looks exactly like a successful take, except the video on
   disk is the previous one.
+- **Never reload or navigate the recorded tab mid-take.** The recorder's screenshot call into a
+  page mid-navigation never returns, which stalls the capture loop for the rest of the run with
+  no error — the video just ends early. The `import` beat opens a new tab instead.
+- **Hide scrollbars in the emulated view** (`Emulation.setScrollbarsHidden`). With five rows the
+  list runs taller than the frame, and the scrollbar reads as a stray line down the right edge.
 - **Let the renderer finish before advancing.** Pressing the next-page key faster
   than PDF.js paints puts blank white pages in the video.
 - **The slide picker scrolls itself** to centre the current slide, so a fixed

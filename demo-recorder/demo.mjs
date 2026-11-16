@@ -1,6 +1,7 @@
 import { sleep } from "./cdp.mjs";
 import { DIR, VIEW, startSite, launch, page, KEYS, Recorder, fitToWindow } from "./driver.mjs";
 import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, readdirSync } from "node:fs";
 
 const PORT = 8099, SITE = DIR + "serve";
 const ONE = "barnes-stein.pdf";
@@ -8,6 +9,10 @@ const REST = ["rd174_don_2026_lehigh.pdf", "Stein discussion - Hamdi et al.pptx"
               "Stein perceived skin tone NBER SI.key"];
 const ALL = [ONE, ...REST];
 const TITLES = ["Paper A", "Discussion A", "Paper B", "Discussion B"];
+// Luke's own deck, shared with anyone who has the link. Its title, first slide
+// and address are all on screen, so it must stay one he chose for this.
+const GOOGLE = "https://docs.google.com/presentation/d/1xI_Som_kSUjr9tY1vDGqkquRlGC_YdYY3YUk31ccPW0/edit";
+const SESSION = "Corporate finance 11am";
 const makeVideo = process.argv.includes("--video");
 const only = (process.argv.find(a => a.startsWith("--beats=")) || "").slice(8).split(",").filter(Boolean);
 const want = name => !only.length || only.includes(name);
@@ -35,6 +40,9 @@ const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatte
 const listPage = { sessionId, targetInfo: { targetId, url: `http://127.0.0.1:${PORT}/` } };
 const list = page(cdp, sessionId);
 console.log("viewport:", JSON.stringify(await fitToWindow(cdp, sessionId)));
+// Five rows run taller than the frame, and a scrollbar along the right edge
+// reads as a stray line in the video.
+await list.call("Emulation.setScrollbarsHidden", { hidden: true });
 await list.call("Page.navigate", { url: `http://127.0.0.1:${PORT}/` });
 await list.until("document.readyState === 'complete' && location.port === '" + PORT + "'");
 await list.inject();
@@ -77,6 +85,30 @@ if (want("drop3")) {
   await list.eval(`__demo.release(${JSON.stringify(REST)})`);
   await list.until("__demo.rows().length === 4");
   await list.settle();
+}
+
+// ------------------------------------------------------- 2b. a Google link
+// Into the field under the drop zone, all at once, as a paste lands. The
+// preview and the deck's name arrive from Google; the wait for them is cut.
+if (want("link")) {
+  beat("link");
+  await list.settle();
+  const field = await list.box("#link");
+  await list.glide(field.left + 90, field.y, 650);
+  await sleep(160);
+  await list.click(field.left + 90, field.y);
+  await sleep(300);
+  await list.call("Input.insertText", { text: GOOGLE });
+  await sleep(650);
+  const add = await list.box("#add-link");
+  await list.glide(add.x, add.y, 420);
+  await sleep(150);
+  const before = (await list.eval("__demo.rows()")).length;
+  await list.click(add.x, add.y);
+  await rec.cut(() => list.until(`document.querySelectorAll('#slides .slide').length > ${before}
+    && !document.querySelector('#slides .slide:last-child img').hidden`, 30000), 350);
+  await sleep(1300);
+  console.log("  google row:", JSON.stringify((await list.eval("__demo.rows()")).at(-1)));
 }
 
 // ----------------------------------------------------------------- 3. reorder
@@ -226,14 +258,16 @@ if (want("pdf")) {
   // The shortcut card first, over the cover slide: it names the keys the rest of
   // the beat then actually uses.
   await deck.key("?", KEYS["?"]);
-  await sleep(1600);
+  await sleep(1400);
   await deck.key("Escape", KEYS.Escape);
   await sleep(600);
 
-  // Page by page to the first slide carrying a link.
+  // Straight to the slide carrying a link, through the picker, rather than
+  // paging there: the demo is about managing the session, not reading slides.
+  await jumpVia(deck, park, t => t.find(x => x.n === LINK_PAGE) ?? t[t.length - 1]);
   while (await page_no(deck) < LINK_PAGE) {
     await deck.key("ArrowRight", KEYS.ArrowRight);
-    await sleep(950);
+    await sleep(700);
   }
   await deck.until("!!document.querySelector('.annotationLayer a')", 15000);
 
@@ -268,13 +302,6 @@ if (want("pdf")) {
   }
   await deck.eval("__demo.show(false)");
   await deck.move(park[0], park[1]);
-
-  await deck.key("ArrowRight", KEYS.ArrowRight);
-  await sleep(1000);
-
-  await jumpVia(deck, park, t => t[t.length - 1]);   // forward, far right of the strip
-  await jumpVia(deck, park, t => t[0]);                // back, far left of the strip
-
   await closePresenter(entry);
 }
 
@@ -282,11 +309,27 @@ if (want("pptx")) {
   beat("pptx");
   const idx = await list.eval("__demo.rows().findIndex(r => r.name.endsWith('.pptx')) + 1");
   const { deck, park, entry } = await openPresenter(`#slides .slide:nth-child(${idx})`, "pptx");
+  await sleep(500);
   await deck.key("ArrowRight", KEYS.ArrowRight);
-  await sleep(1100);
-  await deck.key("ArrowRight", KEYS.ArrowRight);
-  await sleep(1100);
+  await sleep(1000);
   await closePresenter(entry);
+}
+
+// ------------------------------------------------------------- 6b. Get PDF
+// The Google row becomes an ordinary PDF row, dagger and all. The download
+// from Google is cut.
+if (want("getpdf")) {
+  beat("getpdf");
+  await list.settle();
+  const button = await list.box("#slides .get-pdf:not([hidden])");
+  await list.glide(button.x, button.y, 650);
+  await sleep(200);
+  await list.click(button.x, button.y);
+  await rec.cut(() => list.until(`!document.querySelector('#slides .get-pdf:not([hidden])')
+    && !!document.querySelector('#slides .source-link:not([hidden])')`, 60000), 300);
+  await list.settle();
+  await sleep(1500);
+  console.log("  pdf row:", JSON.stringify((await list.eval("__demo.rows()")).at(-1)));
 }
 
 // --------------------------------------------------------------------- 7. zip
@@ -298,13 +341,60 @@ if (want("zip")) {
   await sleep(180);
   await list.click(field.left + 50, field.y, 3);
   await sleep(300);
-  await list.type("Corporate finance 11am", 38);
+  await list.type(SESSION, 38);
   await sleep(400);
   const dl = await list.box("#export");
   await list.glide(dl.x, dl.y, 600);
   await sleep(200);
   await list.click(dl.x, dl.y);
   await sleep(1300);
+}
+
+// ------------------------------------------------------------- 8. pick it up
+// Later, on the room computer: a fresh organizer, and the ZIP from the last
+// beat dropped back in. The reload between is cut.
+if (want("import")) {
+  beat("import");
+  const zipName = `${SESSION}.zip`;
+  const saved = DIR + "downloads/" + zipName;
+  const deadline = Date.now() + 15000;
+  while (!existsSync(saved) && Date.now() < deadline) await sleep(100);
+  if (!existsSync(saved)) throw new Error(`no ${zipName} in downloads/: ${readdirSync(DIR + "downloads")}`);
+  copyFileSync(saved, SITE + "/demo-assets/" + zipName);
+  // A new tab rather than a reload of this one: the recorder's screenshot call
+  // into a page mid-navigation never returns, and stalls the capture for good.
+  const fresh = await rec.cut(async () => {
+    const { targetId: id } = await cdp.send("Target.createTarget", { url: "about:blank" });
+    const { sessionId: sid } = await cdp.send("Target.attachToTarget", { targetId: id, flatten: true });
+    const tab = page(cdp, sid);
+    await tab.call("Emulation.setDeviceMetricsOverride",
+      { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: false });
+    await tab.call("Emulation.setScrollbarsHidden", { hidden: true });
+    await tab.call("Page.navigate", { url: `http://127.0.0.1:${PORT}/` });
+    await tab.until("document.readyState === 'complete' && location.port === '" + PORT + "'");
+    await tab.inject();
+    await tab.calibrate();
+    await tab.eval(`__demo.load(${JSON.stringify([zipName])})`);
+    await tab.eval("__demo.show(true); __demo.place(1420, 820)");
+    await cdp.send("Target.activateTarget", { targetId: id });
+    await rec.focus(id);
+    await sleep(150);
+    return tab;
+  }, 0);
+  await sleep(700);
+  const zone = await fresh.box("#drop-zone");
+  await fresh.eval(`__demo.ghost(${JSON.stringify([zipName])})`);
+  await fresh.demo(`await __demo.glide(${zone.x + 70}, ${zone.y + 6}, 1000, 'out')`);
+  await fresh.move(zone.x + 70, zone.y + 6);
+  await fresh.eval(`__demo.drop(${JSON.stringify([zipName])})`);
+  await sleep(420);
+  await fresh.eval(`__demo.release(${JSON.stringify([zipName])})`);
+  await fresh.until("document.querySelectorAll('#slides .slide').length >= 5", 20000);
+  await fresh.eval("__demo.show(false)");
+  await fresh.settle();
+  console.log("  restored:", JSON.stringify((await fresh.eval("__demo.rows()")).map(r => r.title)),
+    "as", await fresh.eval("document.querySelector('#zip-name').value"));
+  await sleep(2200);
 }
 
 console.log("final rows:", JSON.stringify(await list.eval("__demo.rows().map(r => [r.name.slice(0,16), r.title.slice(0,20)])")));
