@@ -11,15 +11,20 @@ function manifestBytes(sessionName, files) {
   return encoder.encode(buildManifest(sessionName, files));
 }
 
+// Entries are every talk in order, for the manifest; only those with a file
+// take a place in the ZIP itself. A talk that lives online is a line in
+// session.md and nothing more.
 export function sessionZipSize(sessionName, files) {
-  const slides = files.reduce((total, { file, name }) => total + entryCost(name, file.size), 22);
+  const slides = files.filter(({ file }) => file)
+    .reduce((total, { file, name }) => total + entryCost(name, file.size), 22);
   return slides + entryCost(manifestName, manifestBytes(sessionName, files).length);
 }
 
 export async function buildSessionZip(sessionName, files) {
   const maxZipSize = 0xffffffff;
   const size = sessionZipSize(sessionName, files);
-  if (size >= maxZipSize || files.length + 1 >= 0xffff) {
+  const decks = files.filter(({ file }) => file);
+  if (size >= maxZipSize || decks.length + 1 >= 0xffff) {
     throw new RangeError("The session exceeds the ZIP format limits.");
   }
 
@@ -36,7 +41,7 @@ export async function buildSessionZip(sessionName, files) {
     zip.add(manifest);
     manifest.push(manifestBytes(sessionName, files), true);
 
-    for (const { file, name } of files) {
+    for (const { file, name } of decks) {
       const entry = new ZipPassThrough(name);
       zip.add(entry);
       for await (const chunk of file.stream()) entry.push(chunk);

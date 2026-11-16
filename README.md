@@ -9,6 +9,7 @@ A small web tool for whoever runs a conference session, a seminar, or a panel. W
 - **One list, in speaking order.** Drag talks to reorder them, and give each a clean display title.
 - **Present from the browser.** PDFs and PowerPoint decks open in their own tab, one slide at a time, ready to send to the projector.
 - **A ZIP of the whole session.** Numbered, named in order, with a `session.md` running order beside the decks. Drop that ZIP back in later to pick up exactly where you left off.
+- **Online decks too.** Paste a link to Google Slides, Canva, PowerPoint for the web or anywhere else, and it takes its place in the running order.
 - **Private by design.** The organizer has no server side. Nothing is uploaded, and there is nothing to sign in to.
 
 ## How it works
@@ -16,6 +17,8 @@ A small web tool for whoever runs a conference session, a seminar, or a panel. W
 ### 1. Drop your slides in
 
 Drag PDFs, PowerPoint decks, Keynote files, or a saved session ZIP onto the page, or click **+** to choose them. Each deck gets a row with a preview of its first slide, its file size, and its page or slide count when it can be read.
+
+For a deck that lives online, paste its link into the field under **Drop slides here**, or anywhere on the page, or drag it in from another tab. See **Online decks** below.
 
 ### 2. Name and order the talks
 
@@ -80,9 +83,22 @@ Drop a session ZIP back onto the page and the running order returns, titles and 
 - It does not have to stay a ZIP. Unpack it and drag the files in, `session.md` among them, and the order is applied just the same.
 - You can edit `session.md` by hand. Reorder its lines or rewrite a title and the import follows. A deck in the ZIP that the file does not mention is still added, after the ones it does, so nothing is silently dropped.
 
+### Online decks
+
+A link row stands in the running order like any other talk, with a web icon where the preview would be. **Open link** opens it on its own site in a new tab, to present with that service's own presenter. Links need the internet at presenting time.
+
+Google Slides links can do two more things, for decks shared with **Anyone with the link**:
+
+- **Get PDF** fetches a PDF copy from Google into the list. The row becomes an ordinary PDF row, so it presents in the organizer's own presenter, works offline, and goes in the session ZIP. A small **Google Slides ↗** link beside the filename still opens the live deck.
+- **Clicking the web icon** offers to load a preview of the first slide from Google.
+
+Neither happens until you click, and both ask Google anonymously, without your Google sign-in. That is why a private deck is refused. When that happens, the organizer offers a **Download the PDF from Google** link, which downloads it in your own browser, signed in. Drop the downloaded file into the list.
+
+Other services keep their decks behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
+
 ## Good to know
 
-**Your list lives in the open tab.** There is no account and nothing is saved on a server. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
+**Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the only other service the page contacts is Google, and only when you click **Get PDF** or ask for a Google Slides preview. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
 
 **What can be opened.**
 
@@ -91,6 +107,8 @@ Drop a session ZIP back onto the page and the running order returns, titles and 
 | PDF | Yes | Yes, links included | Yes |
 | PowerPoint: `.pptx` `.pptm` `.ppsx` `.ppsm`, and the older `.ppt` `.pps` | Yes | Yes | Yes |
 | Keynote `.key` | Preview of the first slide only | **No** | Yes |
+| Link to Google Slides | On request, from Google | On Google, or here after **Get PDF** | As a PDF, after **Get PDF**; otherwise a line in `session.md` |
+| Link to anything else | No | On its own site | A line in `session.md` |
 
 - **Keynote decks cannot be shown in the browser.** Apple keeps the slides in a format with no public specification, and no browser-side reader for it exists. A Keynote row still has its preview, a Download button, and a place in the ZIP. To present one from the browser, use **File → Export To** in Keynote and choose PDF or PowerPoint. Some `.key` files are folders rather than single files, and those cannot be added to the list at all.
 - **PowerPoint decks are close to, but not exactly, what PowerPoint shows.** Text can wrap differently, and decks that use fonts the room computer does not have will substitute others, as they would in PowerPoint itself. PowerPoint rows carry an asterisk as a reminder. For a talk where every detail matters, use **Download** and present from PowerPoint.
@@ -128,6 +146,7 @@ Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under
 | `docs/present.html`, `docs/present.mjs` | The presenter shell: bar, keys, blanking, slide picker, full screen |
 | `docs/deck-pdf.mjs`, `docs/deck-pptx.mjs` | One rendering engine per format, behind the presenter |
 | `docs/session-zip.mjs`, `docs/session-manifest.mjs`, `docs/session-import.mjs`, `docs/file-identity.mjs` | Writing a session ZIP and its `session.md`, and reading one back without listing a talk twice |
+| `docs/links.mjs` | Reading a pasted link, and fetching a PDF or preview from Google Slides |
 | `docs/vendor/` | Bundled third-party code: PDF.js, fflate, web-ppt, with licenses |
 | `media/` | The demo video and screenshots this README embeds |
 | `demo-recorder/` | The rig that records the video and takes the screenshots; see its own README |
@@ -332,7 +351,17 @@ Reordering the list below, or rewriting a title, changes what the import does.
 1. **Opening paper** — `1. Opening paper.pptx`
 2. **Discussion of Hamdi et al** — `2. Discussion of Hamdi et al.pdf`
 3. **Perceived skin tone** — `3. Perceived skin tone.key`
+4. **Live demo** — <https://www.canva.com/design/DAG…/view>
+5. **Keynote address** — `5. Keynote address.pdf` from <https://docs.google.com/presentation/d/1AbC…/edit>
 ```
+
+A talk that lives online has its link in angle brackets where a filename would be, and has no
+file in the ZIP; its number is skipped among the filenames, so they still match the running
+order. A PDF fetched from Google Slides carries both, and if the PDF has gone missing from the
+folder the import falls back to the link rather than dropping the talk. Links are compared by
+address (for Google Slides, by deck ID, whatever view the address opens), so pasting one twice
+lists it once. Only `http` and `https` addresses become links, whether pasted or read from a
+hand-edited `session.md`.
 
 Dropping that ZIP back in rebuilds the session: the order and the edited titles return, the
 heading becomes the ZIP's name again when the list started empty, and the positional `1. ` prefixes
@@ -375,6 +404,23 @@ should not overwrite a title just typed — and the archive's name is reported r
 silently. The adopted name behaves as a typed one: it names the file on the next export, and
 clearing the field still falls back to the filename.
 
+## Links and Google Slides
+
+The organizer cannot render an online deck, so a link row hands it to the service in a new tab
+(`rel="noopener noreferrer"`). Google Slides is the exception worth special handling: its
+`/presentation/d/<id>/export/pdf` and `/export/png` endpoints send CORS headers, so for a deck
+shared with anyone who has the link the page can fetch the PDF and treat it like a dropped file.
+Requests go out with `credentials: "omit"` and no referrer. They never carry the user's Google
+session, which keeps a page script from reading anything the user can see but has not shared,
+and is also why private decks fail. The fallback is a plain link to the export URL, which the
+browser opens signed in and saves as a download.
+
+This is the one CSP change: `connect-src` adds `https://docs.google.com` (the export endpoint)
+and `https://*.googleusercontent.com` (where it redirects). Google does not document the export
+URLs as an API. If they stop working, link rows still open, and the error offers the manual
+download. Drive's `/thumbnail` endpoint was tried for previews and rejected: its redirect sends no
+CORS headers.
+
 ## Demo video and screenshots
 
 The video and screenshots at the top of this README live in `media/` and come from `demo-recorder/`,
@@ -415,3 +461,7 @@ sample decks, so look at them before committing.
   `window.opener` or a `BroadcastChannel`, rather than a URL baked in when the presenter opened,
   which would go stale as soon as the running order changed. So the button needs a sensible
   disabled state for when that tab has gone.
+- [x] Link rows for decks that live at a URL: Google Slides, PowerPoint for the web, Canva and
+  the rest. See **Online decks** above. Google Slides decks can also be fetched as a PDF.
+- [ ] Try **Get PDF** on the classroom network, and on a deck shared only within a school's
+  Google domain rather than with anyone who has the link, to see how the refusal reads.
