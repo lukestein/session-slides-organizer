@@ -291,7 +291,7 @@ export const KEYS = {
 export class Recorder {
   constructor(wsUrl, frameDir) {
     this.wsUrl = wsUrl; this.dir = frameDir;
-    this.n = 0; this.times = []; this.running = false;
+    this.n = 0; this.times = []; this.running = false; this.cuts = [];
     this.sessions = new Map(); this.scales = new Map();
     rmSync(frameDir, { recursive: true, force: true });
     mkdirSync(frameDir, { recursive: true });
@@ -336,16 +336,38 @@ export class Recorder {
       }
     })();
   }
+  // Runs `work` and drops what was captured while it ran, so waiting on the
+  // network reads as a straight cut in the video: the Google preview, the PDF
+  // download, a page reload. `keep` ms of the start survive, so the click that
+  // started it is still seen landing.
+  async cut(work, keep = 120) {
+    const from = Date.now() - this.t0 + keep;
+    try {
+      return await work();
+    } finally {
+      const to = Date.now() - this.t0;
+      if (to > from) this.cuts.push([from, to]);
+    }
+  }
   async stop() { this.running = false; await this.loop; this.cdp.close();
     return { frames: this.n, ms: Date.now() - this.t0 }; }
+  // Frames inside a cut are dropped, and the time after it moves up by the
+  // cut's length, so each surviving frame keeps its real duration.
   writeList(path) {
-    const lines = [];
+    const inCut = t => this.cuts.some(([a, b]) => t > a && t < b);
+    const shift = t => this.cuts.reduce((sum, [a, b]) => sum + (t >= b ? b - a : 0), 0);
+    const kept = [];
     for (let i = 0; i < this.n; i++) {
-      const next = i + 1 < this.n ? this.times[i + 1] : this.times[i] + 40;
-      lines.push(`file 'f${String(i).padStart(5, "0")}.jpg'`,
-        `duration ${((next - this.times[i]) / 1000).toFixed(4)}`);
+      if (!inCut(this.times[i])) kept.push({ i, t: this.times[i] - shift(this.times[i]) });
     }
-    lines.push(`file 'f${String(this.n - 1).padStart(5, "0")}.jpg'`);
+    const lines = [];
+    kept.forEach(({ i, t }, k) => {
+      const next = k + 1 < kept.length ? kept[k + 1].t : t + 40;
+      lines.push(`file 'f${String(i).padStart(5, "0")}.jpg'`,
+        `duration ${(Math.max(next - t, 1) / 1000).toFixed(4)}`);
+    });
+    lines.push(`file 'f${String(kept.at(-1).i).padStart(5, "0")}.jpg'`);
     writeFileSync(path, lines.join("\n") + "\n");
+    return { frames: kept.length, cutMs: this.cuts.reduce((sum, [a, b]) => sum + b - a, 0) };
   }
 }

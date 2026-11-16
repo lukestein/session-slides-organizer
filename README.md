@@ -2,7 +2,7 @@
 
 **Hosted at <https://lukestein.com/session-slides-organizer/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
 
-https://github.com/user-attachments/assets/0424ca34-b8d7-4a1c-bff1-3750d22f6146
+https://github.com/user-attachments/assets/21a3cc7f-5a1a-4f88-949c-9c13e6312e4a
 
 A small web tool for whoever runs a conference session, a seminar, or a panel. When several speakers share one room computer, the usual scramble is a pile of files in Downloads, a different app for each format, and a laptop-swap between every talk. Here you put all the decks in one list, put them in speaking order, and open each one at its turn. PDFs, PowerPoint decks and Keynote files all go in the same list.
 
@@ -442,10 +442,12 @@ cd demo-recorder
 node screenshots.mjs      # writes shots-readme/; copy the keepers into ../media/
 ```
 
-The video (`media/demo.mp4`) was recorded on an earlier build, so it predates the session ZIP
-import and the footer, and its drop zone still says "PDF, PowerPoint, or Keynote". Retake it with
-`node demo.mjs --video`. Both the video and the screenshots show real slide content from the
-sample decks, so look at them before committing.
+The video (`media/demo.mp4`) shows the build with online decks: it pastes a Google Slides link,
+fetches its PDF, and drops the session ZIP back into a fresh tab. The README plays a copy uploaded
+to GitHub, so after a retake, drag the new file into any GitHub comment box and swap the
+`user-attachments` URL at the top of this file. Retake it with `node demo.mjs --video`. Both the
+video and the screenshots show real slide content from the sample decks, and the video also
+shows a real Google Slides deck, so look at them before committing.
 
 ## To do
 
