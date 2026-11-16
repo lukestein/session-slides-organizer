@@ -32,6 +32,7 @@ const zipDetails = document.querySelector("#zip-details");
 const zipName = document.querySelector("#zip-name");
 const deckCaveat = document.querySelector("#deck-caveat");
 const linkCaveat = document.querySelector("#link-caveat");
+const googleCaveat = document.querySelector("#google-caveat");
 const linkField = document.querySelector("#link");
 const addLinkButton = document.querySelector("#add-link");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
@@ -119,6 +120,7 @@ function updateList() {
   list.hidden = slides.length === 0;
   deckCaveat.hidden = !slides.some(slide => needsCaveat(slide.extension));
   linkCaveat.hidden = !slides.some(slide => !slide.file);
+  googleCaveat.hidden = !slides.some(slide => slide.file && slide.link);
   updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
@@ -222,35 +224,59 @@ function makeLinkControls(slide, { thumbnail, openPdf, download, getPdf }) {
   thumbnail.insertAdjacentHTML("afterbegin", globe);
   if (!link.googleId) return;
 
-  const peek = document.createElement("button");
-  peek.type = "button";
-  peek.className = "preview-button";
-  peek.title = "Show a preview from Google";
-  peek.setAttribute("aria-label", `Show a preview of ${link.display} from Google`);
-  peek.append(thumbnail.querySelector("svg"),
-    Object.assign(document.createElement("span"), { textContent: "Preview" }));
-  thumbnail.removeAttribute("aria-hidden");
-  thumbnail.prepend(peek);
-  peek.addEventListener("click", async () => {
-    const ok = confirm("Load a preview of this deck from Google?\n\n"
-      + "This asks Google for the first slide. It works for decks shared with anyone who has the link.");
-    if (!ok) return;
-    peek.disabled = true;
-    try {
-      const image = await fetchGooglePreview(link.googleId);
-      if (!slide.row.isConnected) return;
-      showPreview(slide, image);
-      peek.remove();
-      thumbnail.setAttribute("aria-hidden", "true");
-    } catch {
-      peek.disabled = false;
-      showProblem(googleRefusal(slide, "a preview"));
-    }
+  // The preview and the deck's name come in one small request, made as soon
+  // as the link is added. If it fails — a private deck, or no network yet —
+  // the web icon stays, and becomes a button to try again.
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "preview-button";
+  retry.title = "Couldn’t load a preview from Google. Click to try again.";
+  retry.setAttribute("aria-label", `Try again to load a preview of ${link.display} from Google`);
+  retry.append(Object.assign(document.createElement("span"), { textContent: "Retry" }));
+  retry.hidden = true;
+  thumbnail.prepend(retry);
+  retry.addEventListener("click", async () => {
+    if (!await loadGooglePreview(slide, retry)) showProblem(googleRefusal(slide, "a preview"));
   });
+  loadGooglePreview(slide, retry);
 
   getPdf.hidden = false;
   getPdf.setAttribute("aria-label", `Get a PDF of ${link.display} from Google`);
   getPdf.addEventListener("click", () => importGooglePdf(slide, getPdf));
+}
+
+async function loadGooglePreview(slide, retry) {
+  retry.disabled = true;
+  try {
+    const { image, name } = await fetchGooglePreview(slide.link.googleId);
+    if (!slide.row.isConnected) return true;
+    showPreview(slide, image);
+    if (name) adoptDeckName(slide, name);
+    retry.remove();
+    slide.row.querySelector(".link-thumbnail svg")?.remove();
+    return true;
+  } catch {
+    if (!slide.row.isConnected) return true;
+    // Reachable now, so the icon says it can be clicked.
+    retry.disabled = false;
+    retry.hidden = false;
+    retry.parentElement.removeAttribute("aria-hidden");
+    retry.prepend(slide.row.querySelector(".link-thumbnail svg"));
+    return false;
+  }
+}
+
+// The deck's own name replaces the service's as the fallback title, the same
+// part a filename plays for a dropped file: a title someone typed or brought in
+// a session stays, and clearing the field returns to this.
+function adoptDeckName(slide, name) {
+  slide.defaultTitle = name.slice(0, slide.title.maxLength);
+  slide.title.placeholder = slide.defaultTitle;
+  if (slide.named) return;
+  slide.friendlyName = slide.defaultTitle;
+  slide.title.defaultValue = slide.defaultTitle;
+  if (document.activeElement !== slide.title) slide.title.value = slide.defaultTitle;
+  updateList();
 }
 
 // Google will not hand a private deck to a page, and says so only by failing.
@@ -363,6 +389,16 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
     openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
     download.setAttribute("aria-label", `Download ${file.name}`);
     if (link) {
+      // The dagger points at the note on what a PDF from Google leaves out.
+      for (const button of [openPdf, download]) {
+        button.append(Object.assign(document.createElement("b"), {
+          textContent: "†", ariaHidden: "true",
+        }));
+      }
+      openPdf.setAttribute("aria-label",
+        `Open in browser: ${file.name}. Saved from Google Slides, without animations, video or audio.`);
+      download.setAttribute("aria-label",
+        `Download ${file.name}. Saved from Google Slides, without animations, video or audio.`);
       // Where the PDF came from, for presenting from the live deck instead.
       const source = row.querySelector(".source-link");
       source.href = link.url;
@@ -392,7 +428,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
 
   title.addEventListener("input", () => {
     if (title.value.trim()) slide.named = true;
-    slide.friendlyName = title.value.trim() || defaultTitle;
+    slide.friendlyName = title.value.trim() || slide.defaultTitle;
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
     updateArchive();

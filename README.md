@@ -87,18 +87,18 @@ Drop a session ZIP back onto the page and the running order returns, titles and 
 
 A link row stands in the running order like any other talk, with a web icon where the preview would be. **Open link** opens it on its own site in a new tab, to present with that service's own presenter. Links need the internet at presenting time.
 
-Google Slides links can do two more things, for decks shared with **Anyone with the link**:
+Google Slides links do more, for decks shared with **Anyone with the link**:
 
-- **Get PDF** fetches a PDF copy from Google into the list. The row becomes an ordinary PDF row, so it presents in the organizer's own presenter, works offline, and goes in the session ZIP. A small **Google Slides ↗** link beside the filename still opens the live deck.
-- **Clicking the web icon** offers to load a preview of the first slide from Google.
+- **A preview and the deck's name** arrive as soon as the link is added. Google does not say how many slides there are until the whole PDF is fetched, so the count waits for **Get PDF**. If the preview cannot be loaded (a private deck, or no network yet), the web icon stays, and clicking it tries again.
+- **Get PDF** fetches a PDF copy from Google into the list. The row becomes an ordinary PDF row, so it presents in the organizer's own presenter, works offline, and goes in the session ZIP. A small **Google Slides ↗** link beside the filename still opens the live deck. Its buttons carry a dagger (†) pointing at what the PDF leaves out: each slide appears in its finished state, without animations or transitions, and video and audio don't play.
 
-Neither happens until you click, and both ask Google anonymously, without your Google sign-in. That is why a private deck is refused. When that happens, the organizer offers a **Download the PDF from Google** link, which downloads it in your own browser, signed in. Drop the downloaded file into the list.
+Both ask Google anonymously, without your Google sign-in, which is why a private deck is refused. When **Get PDF** is refused, the organizer offers a **Download the PDF from Google** link, which downloads it in your own browser, signed in. Drop the downloaded file into the list.
 
 Other services keep their decks behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
 
 ## Good to know
 
-**Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the only other service the page contacts is Google, and only when you click **Get PDF** or ask for a Google Slides preview. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
+**Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the only other service the page contacts is Google: for the preview and name of a Google Slides link when you add one, and for its PDF when you click **Get PDF**. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
 
 **What can be opened.**
 
@@ -107,7 +107,7 @@ Other services keep their decks behind their own sign-in and offer no comparable
 | PDF | Yes | Yes, links included | Yes |
 | PowerPoint: `.pptx` `.pptm` `.ppsx` `.ppsm`, and the older `.ppt` `.pps` | Yes | Yes | Yes |
 | Keynote `.key` | Preview of the first slide only | **No** | Yes |
-| Link to Google Slides | On request, from Google | On Google, or here after **Get PDF** | As a PDF, after **Get PDF**; otherwise a line in `session.md` |
+| Link to Google Slides | From Google, with the deck's name; the count after **Get PDF** | On Google, or here after **Get PDF** | As a PDF, after **Get PDF**; otherwise a line in `session.md` |
 | Link to anything else | No | On its own site | A line in `session.md` |
 
 - **Keynote decks cannot be shown in the browser.** Apple keeps the slides in a format with no public specification, and no browser-side reader for it exists. A Keynote row still has its preview, a Download button, and a place in the ZIP. To present one from the browser, use **File → Export To** in Keynote and choose PDF or PowerPoint. Some `.key` files are folders rather than single files, and those cannot be added to the list at all.
@@ -420,6 +420,12 @@ and `https://*.googleusercontent.com` (where it redirects). Google does not docu
 URLs as an API. If they stop working, link rows still open, and the error offers the manual
 download. Drive's `/thumbnail` endpoint was tried for previews and rejected: its redirect sends no
 CORS headers.
+
+The preview is `/export/png`, about 25 KB, fetched as soon as a Google link is added; its
+`Content-Disposition` carries the deck's name, which becomes the row's fallback title the way a
+filename does for a dropped file, so a title someone typed or brought in a session is never
+replaced. No cheap export gives a slide count: `/export/txt` runs every slide's text together
+with nothing marking where one slide ends.
 
 ## Demo video and screenshots
 

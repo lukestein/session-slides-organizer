@@ -2,7 +2,8 @@
 // PowerPoint for the web, Canva and the like. A link row opens on its own
 // site. Google Slides is the one service that also hands over a PDF and a
 // preview to a page like this, and only for a deck shared with anyone who has
-// the link; those requests are made only when someone clicks for them.
+// the link. Its preview and name are asked for as soon as such a link is
+// added; the PDF only when someone clicks for it.
 
 // The names shown for the services people are likely to paste. Anything else
 // is still accepted, and goes by its host name.
@@ -85,9 +86,11 @@ async function fetchFromGoogle(id, format) {
 }
 
 // Content-Disposition carries the deck's own name, which is the best title on
-// offer. Google appends ".pdf" to a converted upload's name, so a deck that
-// began as `talk.pptx` arrives as `talk.pptx.pdf`; the inner extension goes.
-function filenameFrom(disposition) {
+// offer, on every export: the PDF and the preview image alike. Google appends
+// the export's extension to a converted upload's name, so a deck that began as
+// `talk.pptx` arrives as `talk.pptx.pdf`; the inner extension goes too.
+// Returns the bare name, or "" when Google gave none.
+function deckNameFrom(disposition) {
   const encoded = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disposition ?? "")?.[1];
   let name = "";
   if (encoded) {
@@ -98,10 +101,11 @@ function filenameFrom(disposition) {
     }
   }
   name ||= /filename\s*=\s*"([^"]*)"/i.exec(disposition ?? "")?.[1] ?? "";
-  name = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim();
-  name = name.replace(/\.(?:pptx?|pptm|ppsx?|key|odp)(?=\.pdf$)/i, "");
-  if (!/\.pdf$/i.test(name)) name = name ? `${name}.pdf` : "";
-  return name.replace(/^\.pdf$/i, "") || "Google Slides.pdf";
+  return name
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/\.(?:pdf|png)$/i, "")
+    .replace(/\.(?:pptx?|pptm|ppsx?|key|odp)$/i, "")
+    .trim();
 }
 
 /** The deck as a PDF File, or a thrown error when Google will not hand it over. */
@@ -110,14 +114,19 @@ export async function fetchGooglePdf(id) {
   const blob = await response.blob();
   const magic = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer());
   if (magic !== "%PDF-") throw new Error("Google did not send a PDF.");
-  const name = filenameFrom(response.headers.get("Content-Disposition"));
-  return new File([blob], name, { type: "application/pdf" });
+  const name = deckNameFrom(response.headers.get("Content-Disposition")) || "Google Slides";
+  return new File([blob], `${name}.pdf`, { type: "application/pdf" });
 }
 
-/** The first slide as an image Blob. */
+/**
+ * The first slide as an image Blob, and the deck's name, which comes with it.
+ * Returns { image, name }; name is "" when Google gave none. There is no slide
+ * count to be had this cheaply: only the PDF says reliably, and that is what
+ * Get PDF is for.
+ */
 export async function fetchGooglePreview(id) {
   const response = await fetchFromGoogle(id, "png");
-  const blob = await response.blob();
-  if (!blob.type.startsWith("image/") || !blob.size) throw new Error("Google did not send an image.");
-  return blob;
+  const image = await response.blob();
+  if (!image.type.startsWith("image/") || !image.size) throw new Error("Google did not send an image.");
+  return { image, name: deckNameFrom(response.headers.get("Content-Disposition")) };
 }

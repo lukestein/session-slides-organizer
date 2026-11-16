@@ -58,7 +58,7 @@ h1, h2, p { margin: 0; }
   line-height: 1.5;
 }
 .caveat b { font-weight: 700; }
-.open-pdf b { font-weight: 700; margin-left: .1em; }
+.open-pdf b, .download b { font-weight: 700; margin-left: .1em; }
 footer { padding-block: 1.35rem 2rem; color: var(--muted); font-size: .8rem; }
 footer a { color: var(--accent); text-underline-offset: .15em; }
 
