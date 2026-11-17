@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { fetchLinkedFile, looksLikeDeckFile, NotADeckError, parseLink } from "../docs/links.mjs";
+import { strToU8, zipSync } from "../docs/vendor/fflate/esm/browser.js";
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -9,8 +10,23 @@ function serve(body, headers = {}) {
   globalThis.fetch = async () => new Response(body, { headers });
 }
 
-const pdfBytes = "%PDF-1.4\n%%EOF";
-const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0]);
+function onePagePdf() {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 180] /Resources << >> >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = objects.map((object, index) => {
+    const offset = pdf.length;
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    return offset;
+  });
+  const xref = pdf.length;
+  pdf += "xref\n0 4\n0000000000 65535 f \n";
+  pdf += offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  return `${pdf}trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+}
 
 test("only addresses on ordinary hosts are fetched directly", () => {
   assert.equal(parseLink("https://donbowen.github.io/PublicFiles/rd174_syracuse.pdf").direct, true);
@@ -24,18 +40,29 @@ test("an address naming a slide file is recognized", () => {
 });
 
 test("a PDF is taken by its bytes, whatever the address calls it", async () => {
-  serve(pdfBytes, { "Content-Type": "application/octet-stream" });
+  serve(onePagePdf(), { "Content-Type": "application/octet-stream" });
   const file = await fetchLinkedFile(parseLink("https://example.org/download?id=7"));
   assert.equal(file.name, "download.pdf");
-  serve(pdfBytes, { "Content-Disposition": "attachment; filename=\"Keynote talk.pdf\"" });
+  serve(onePagePdf(), { "Content-Disposition": "attachment; filename=\"Keynote talk.pdf\"" });
   assert.equal((await fetchLinkedFile(parseLink("https://example.org/x"))).name, "Keynote talk.pdf");
 });
 
-test("a PowerPoint file needs both its name and a matching package", async () => {
-  serve(zipBytes, { "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
-  assert.equal((await fetchLinkedFile(parseLink("https://example.org/talk.pptx"))).name, "talk.pptx");
-  serve(zipBytes);
-  await assert.rejects(fetchLinkedFile(parseLink("https://example.org/archive.zip")));
+test("a slide filename cannot turn an ordinary ZIP into a deck", async () => {
+  const archive = zipSync({ "notes.txt": strToU8("There are no slides here.") });
+  serve(archive, { "Content-Type": "application/octet-stream" });
+  for (const extension of ["pptx", "ppt", "key", "zip"]) {
+    await assert.rejects(fetchLinkedFile(parseLink(`https://example.org/talk.${extension}`)), NotADeckError);
+  }
+});
+
+test("a Keynote package is recognized by its document entry", async () => {
+  serve(zipSync({ "Index/Document.iwa": new Uint8Array([1]) }));
+  assert.equal((await fetchLinkedFile(parseLink("https://example.org/talk.key"))).name, "talk.key");
+});
+
+test("a PDF signature alone does not pass validation", async () => {
+  serve("%PDF-1.4\n%%EOF", { "Content-Type": "application/pdf" });
+  await assert.rejects(fetchLinkedFile(parseLink("https://example.org/talk.pdf")), NotADeckError);
 });
 
 test("web pages, images and failed requests stay links", async () => {

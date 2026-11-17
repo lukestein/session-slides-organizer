@@ -41,7 +41,7 @@ const rowAnimations = new WeakMap();
 let drag;
 let fileDragDepth = 0;
 let previewQueue = Promise.resolve();
-let importQueue = Promise.resolve();
+let listQueue = Promise.resolve();
 let tabbing = false;
 
 document.addEventListener("keydown", event => {
@@ -179,6 +179,7 @@ function renameSlide(slide, name) {
 
 function removeSlide(slide) {
   const index = slides.indexOf(slide);
+  if (index < 0) return;
   slides.splice(index, 1);
   slide.row.remove();
   releaseUrls(slide);
@@ -337,13 +338,15 @@ async function importGooglePdf(slide, button) {
     if (slide.row.isConnected) showProblem(googleRefusal(slide, "a PDF"));
     return;
   }
-  const replacement = replaceWithFile(slide, file);
-  if (!replacement) return;
-  updateList();
-  error.hidden = true;
-  notice.hidden = true;
-  replacement.open.focus();
-  announce(`${replacement.friendlyName} is now a PDF in this list.`);
+  await queueListUpdate(() => {
+    const replacement = replaceWithFile(slide, file);
+    if (!replacement) return;
+    updateList();
+    error.hidden = true;
+    notice.hidden = true;
+    replacement.open.focus();
+    announce(`${replacement.friendlyName} is now a PDF in this list.`);
+  });
 }
 
 function extensionOf(name) {
@@ -418,19 +421,21 @@ async function fetchLinkedDeck(slide, { asked = false } = {}) {
     }
     return;
   }
-  if (!slide.row.isConnected || !slides.includes(slide)) return;
-  const repeat = await findDuplicate(file, slides.filter(other => other !== slide));
-  if (repeat) {
-    removeSlide(slide);
-    notice.textContent = `Already in this session, so not added again: ${repeat.friendlyName}.`;
-    notice.hidden = false;
-    return;
-  }
-  const replacement = replaceWithFile(slide, file);
-  if (!replacement) return;
-  updateList();
-  if (asked) error.hidden = true;
-  announce(`${replacement.friendlyName} downloaded from ${slide.link.service}.`);
+  await queueListUpdate(async () => {
+    if (!slides.includes(slide)) return;
+    const repeat = await findDuplicate(file, slides);
+    if (!slides.includes(slide)) return;
+    if (repeat && slides.includes(repeat)) {
+      removeSlide(slide);
+      notice.textContent = `Already in this session, so not added again: ${repeat.friendlyName}.`;
+      notice.hidden = false;
+      return;
+    }
+    const replacement = replaceWithFile(slide, file);
+    updateList();
+    if (asked) error.hidden = true;
+    announce(`${replacement.friendlyName} downloaded from ${slide.link.service}.`);
+  });
 }
 
 function refreshFailure(slide) {
@@ -459,8 +464,9 @@ async function refreshFromSource(slide, button) {
     return;
   }
   if (!slide.row.isConnected) return;
-  error.hidden = true;
   const [before, after] = await Promise.all([fingerprint(slide.file), fingerprint(file)]);
+  if (!slide.row.isConnected) return;
+  error.hidden = true;
   if (before && before === after) {
     restore();
     notice.textContent = `“${slide.friendlyName}” is already up to date.`;
@@ -469,12 +475,17 @@ async function refreshFromSource(slide, button) {
     return;
   }
   const { count, unit } = slide;
-  const hadFocus = slide.row.contains(document.activeElement);
-  const replacement = replaceWithFile(slide, file);
+  const replacement = await queueListUpdate(() => {
+    const refreshHadFocus = document.activeElement === button;
+    const updated = replaceWithFile(slide, file);
+    if (!updated) return null;
+    updateList();
+    if (refreshHadFocus) updated.refresh.focus();
+    return updated;
+  });
   if (!replacement) return;
-  updateList();
-  if (hadFocus) replacement.refresh?.focus();
   await replacement.previewed;
+  if (!replacement.row.isConnected) return;
   let change = "";
   if (count && replacement.count && replacement.count !== count) {
     const direction = replacement.count < count ? "down" : "up";
@@ -648,17 +659,20 @@ function findLink(link) {
   return link && slides.find(slide => slide.link?.key === link.key);
 }
 
-// Entries are { file, title, link }, with a file, a link, or both; a title of
-// its own is what a session ZIP brings back, and everything else leaves it
-// empty and takes the filename.
-function addEntries(entries, options) {
-  // ZIP extraction can overlap. Comparing against the list and inserting into
-  // it have to run together, since comparing file contents can yield.
-  const pending = importQueue.then(() => insertEntries(entries, options));
-  importQueue = pending.catch(() => {});
+function queueListUpdate(update) {
+  // Downloads and extraction can overlap. The duplicate check and the list
+  // update run together, since comparing file contents can yield.
+  const pending = listQueue.then(update);
+  listQueue = pending.catch(() => {});
   return pending;
 }
 
+function addEntries(entries, options) {
+  return queueListUpdate(() => insertEntries(entries, options));
+}
+
+// Entries can carry a file, a link, or both. An empty title uses the row's
+// default, which comes from the filename or the link.
 async function insertEntries(entries, { rejected = [], problems = [], note = "", sessionName = "", fetchLinks = false } = {}) {
   const startedEmpty = slides.length === 0;
   let added = 0;
@@ -751,7 +765,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
     announce(notice.textContent);
   }
   // After the messages above, so a download that fails can still say so.
-  toFetch.forEach(fetchLinkedDeck);
+  toFetch.forEach(slide => fetchLinkedDeck(slide));
   return added;
 }
 

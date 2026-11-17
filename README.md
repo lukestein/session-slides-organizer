@@ -94,7 +94,7 @@ Google Slides links do more, for decks shared with **Anyone with the link**:
 
 Both ask Google anonymously, without your Google sign-in, which is why a private deck is refused. When **Get PDF** is refused, the organizer offers a **Download the PDF from Google** link, which downloads it in your own browser, signed in. Drop the downloaded file into the list.
 
-**A link straight to a file**, such as `https://example.github.io/talk.pdf`, is downloaded as soon as you add it, when the site allows it. The row becomes an ordinary PDF or PowerPoint row, with a small link to where it came from. Many sites, including GitHub Pages, allow this. Many university and file-sharing sites don't. Then the row stays a link, and if the address ends in a slide filename the organizer says so and offers the link to download it yourself. Such a row also gets a **Get file** button, to try again once the site is back up, or after a session ZIP brings the row back without its file. Importing a ZIP never downloads anything on its own, so it works offline.
+**A link straight to a file**, such as `https://example.github.io/talk.pdf`, is downloaded as soon as you add it, when the site allows it. The row becomes a file row with a small link to its source. Many sites, including GitHub Pages, allow this. Many university and file-sharing sites don't. Then the row stays a link, and if the address ends in a slide filename the organizer says so and offers the link to download it yourself. Such a row also gets a **Get file** button, to try again once the site is back up, or after a session ZIP brings the row back without its file. ZIP import works offline using the files in the archive. With internet access, it can also load previews for restored Google Slides links. Use **Get file** or **Get PDF** to download the deck for a restored link.
 
 **Refresh** appears beside the source link on any row fetched from a link, Google Slides included. It downloads the current version, in case the speaker has changed the deck, and keeps the row's position and any title you typed. It says when nothing has changed, and when the page count has. It only runs when you click it, so a deck never changes under you mid-session.
 
@@ -428,10 +428,12 @@ session, which keeps a page script from reading anything the user can see but ha
 and is also why private decks fail. The fallback is a plain link to the export URL, which the
 browser opens signed in and saves as a download.
 
-A link on any other host (not one of the known services) is fetched once when it is added, the
-same anonymous way, and kept only if its first bytes say PDF, or say ZIP or OLE behind a
-PowerPoint or Keynote filename; an HTML, image or media `Content-Type` stops it before the body
-downloads. That needs the site to send CORS headers, which GitHub Pages does and many others don't.
+A link on an ordinary website is fetched when it is added, the same anonymous way. The app
+uses the bytes to identify PDFs and the filename and container format to identify PowerPoint
+and Keynote files. It checks that PDF and PowerPoint files open in the bundled readers and
+that Keynote packages contain a presentation document. An HTML, image or media
+`Content-Type` stops the fetch before it downloads the body. The site needs to send CORS
+headers, which GitHub Pages does and many others don't.
 Because the hosts can be anything, `connect-src` allows `https:`. Requests still omit credentials
 and the referrer, and `script-src` stays `'self'`, so the wider `connect-src` lets the page read
 public files, not run them. Google does not document the export

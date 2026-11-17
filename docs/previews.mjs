@@ -1,20 +1,9 @@
-const pdfAssets = new URL("./vendor/pdfjs/", import.meta.url);
+import { loadPdf } from "./pdf-document.mjs";
+
 const embeddedPreview = /^(?:docProps\/thumbnail|preview(?:-web)?)[.](?:jpe?g|png|webp)$/i;
-let pdfLibrary;
 
 async function pdfPreview(fileUrl, reportCount) {
-  pdfLibrary ??= import("./vendor/pdfjs/legacy/build/pdf.min.mjs");
-  const { getDocument, GlobalWorkerOptions } = await pdfLibrary;
-  GlobalWorkerOptions.workerSrc = new URL("legacy/build/pdf.worker.min.mjs", pdfAssets).href;
-  const task = getDocument({
-    url: fileUrl,
-    cMapUrl: new URL("cmaps/", pdfAssets).href,
-    cMapPacked: true,
-    standardFontDataUrl: new URL("standard_fonts/", pdfAssets).href,
-    wasmUrl: new URL("wasm/", pdfAssets).href,
-    iccUrl: new URL("iccs/", pdfAssets).href,
-    enableXfa: false,
-  });
+  const { task } = await loadPdf({ url: fileUrl });
   try {
     const pdf = await task.promise;
     reportCount(pdf.numPages, "page");

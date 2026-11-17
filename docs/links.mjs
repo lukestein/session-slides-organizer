@@ -11,6 +11,8 @@
 // GitHub Pages does, many university and file-sharing sites do not, and then
 // the row stays a link.
 
+import { loadPdf } from "./pdf-document.mjs";
+
 // The names shown for the services people are likely to paste. Anything else
 // is still accepted, and goes by its host name.
 const services = [
@@ -134,13 +136,56 @@ async function startsWith(blob, signature) {
 }
 const pdfMagic = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
 const zipMagic = [0x50, 0x4b, 0x03, 0x04]; // .pptx and .key are ZIP packages
-const oleMagic = [0xd0, 0xcf, 0x11, 0xe0]; // .ppt, the older binary format
+const oleMagic = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]; // .ppt and .pps
+
+async function validatePdf(blob) {
+  const { task } = await loadPdf({ data: await blob.arrayBuffer() });
+  try {
+    const pdf = await task.promise;
+    await pdf.getPage(1);
+  } catch {
+    throw new NotADeckError("The PDF could not be opened.");
+  } finally {
+    await task.destroy();
+  }
+}
+
+async function isKeynotePackage(blob) {
+  const { unzipSync } = await import("./vendor/fflate/esm/browser.js");
+  let hasDocument = false;
+  unzipSync(new Uint8Array(await blob.arrayBuffer()), {
+    filter: ({ name, originalSize }) => {
+      if (originalSize && /^(?:Index\/Document\.iwa|index\.apxl(?:\.gz)?)$/.test(name)) {
+        hasDocument = true;
+      }
+      return false;
+    },
+  });
+  return hasDocument;
+}
+
+async function isPresentation(blob, extension) {
+  if (!extension || extension === "pdf") return false;
+  const signature = ["ppt", "pps"].includes(extension) ? oleMagic : zipMagic;
+  if (!await startsWith(blob, signature)) return false;
+  try {
+    if (extension === "key") return await isKeynotePackage(blob);
+    const { parse } = await import("./vendor/webppt/core/core.js");
+    const presentation = await parse(blob);
+    const hasSlides = presentation.slides.length > 0;
+    presentation.dispose?.();
+    return hasSlides;
+  } catch {
+    return false;
+  }
+}
 
 /** The deck as a PDF File, or a thrown error when Google will not hand it over. */
 export async function fetchGooglePdf(id) {
   const response = await fetchFromGoogle(id, "pdf");
   const blob = await response.blob();
   if (!await startsWith(blob, pdfMagic)) throw new Error("Google did not send a PDF.");
+  await validatePdf(blob);
   const name = deckNameFrom(response.headers.get("Content-Disposition")) || "Google Slides";
   return new File([blob], `${name}.pdf`, { type: "application/pdf" });
 }
@@ -201,9 +246,9 @@ export async function fetchLinkedFile(link) {
   let name = remoteFilename(response, response.url || link.url) || link.service;
   const extension = deckExtensions.exec(name)?.[1].toLowerCase();
   if (await startsWith(blob, pdfMagic)) {
+    await validatePdf(blob);
     if (extension !== "pdf") name = `${name.replace(/\.[^.]*$/, "") || "Slides"}.pdf`;
-  } else if (!extension || extension === "pdf"
-    || !(await startsWith(blob, zipMagic) || await startsWith(blob, oleMagic))) {
+  } else if (!await isPresentation(blob, extension)) {
     throw new NotADeckError("The link does not lead to a PDF, PowerPoint or Keynote file.");
   }
   return new File([blob], name, { type: blob.type });
