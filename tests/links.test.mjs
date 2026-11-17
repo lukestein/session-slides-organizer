@@ -55,6 +55,13 @@ test("a slide filename cannot turn an ordinary ZIP into a deck", async () => {
   }
 });
 
+test("a PowerPoint package is recognized by its presentation part", async () => {
+  serve(zipSync({ "[Content_Types].xml": strToU8("<Types/>"), "ppt/presentation.xml": strToU8("<p:presentation/>") }));
+  for (const extension of ["pptx", "pptm", "ppsx", "ppsm"]) {
+    assert.equal((await fetchLinkedFile(parseLink(`https://example.org/talk.${extension}`))).name, `talk.${extension}`);
+  }
+});
+
 test("a Keynote package is recognized by its document entry", async () => {
   serve(zipSync({ "Index/Document.iwa": new Uint8Array([1]) }));
   assert.equal((await fetchLinkedFile(parseLink("https://example.org/talk.key"))).name, "talk.key");

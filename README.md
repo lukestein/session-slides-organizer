@@ -430,8 +430,9 @@ browser opens signed in and saves as a download.
 
 A link on an ordinary website is fetched when it is added, the same anonymous way. The app
 uses the bytes to identify PDFs and the filename and container format to identify PowerPoint
-and Keynote files. It checks that PDF and PowerPoint files open in the bundled readers and
-that Keynote packages contain a presentation document. An HTML, image or media
+and Keynote files. It checks that a PDF opens in the bundled reader, that a PowerPoint or Keynote
+package lists its presentation document (read from the ZIP directory, without unpacking), and
+that an older `.ppt` or `.pps` file holds slides. An HTML, image or media
 `Content-Type` stops the fetch before it downloads the body. The site needs to send CORS
 headers, which GitHub Pages does and many others don't.
 Because the hosts can be anything, `connect-src` allows `https:`. Requests still omit credentials

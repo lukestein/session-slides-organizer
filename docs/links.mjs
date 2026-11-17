@@ -150,31 +150,43 @@ async function validatePdf(blob) {
   }
 }
 
-async function isKeynotePackage(blob) {
+// The entry that makes a ZIP a deck: a PowerPoint package's presentation part,
+// or a Keynote package's document. Only the ZIP's directory is read; nothing is
+// unpacked, so even a deck full of video is checked in moments.
+const packageDocument = {
+  key: /^(?:Index\/Document\.iwa|index\.apxl(?:\.gz)?)$/,
+  pptx: /^ppt\/presentation\.xml$/,
+};
+
+async function hasPackageEntry(blob, pattern) {
   const { unzipSync } = await import("./vendor/fflate/esm/browser.js");
-  let hasDocument = false;
+  let found = false;
   unzipSync(new Uint8Array(await blob.arrayBuffer()), {
     filter: ({ name, originalSize }) => {
-      if (originalSize && /^(?:Index\/Document\.iwa|index\.apxl(?:\.gz)?)$/.test(name)) {
-        hasDocument = true;
-      }
+      if (originalSize && pattern.test(name)) found = true;
       return false;
     },
   });
-  return hasDocument;
+  return found;
+}
+
+// The 1997–2003 formats are OLE containers with no cheap way to look inside,
+// so those alone are opened with the deck reader to make sure they hold slides.
+async function hasLegacySlides(blob) {
+  const { parse } = await import("./vendor/webppt/core/core.js");
+  const presentation = await parse(await blob.arrayBuffer());
+  const hasSlides = presentation.slides.length > 0;
+  presentation.dispose?.();
+  return hasSlides;
 }
 
 async function isPresentation(blob, extension) {
   if (!extension || extension === "pdf") return false;
-  const signature = ["ppt", "pps"].includes(extension) ? oleMagic : zipMagic;
-  if (!await startsWith(blob, signature)) return false;
+  const legacy = ["ppt", "pps"].includes(extension);
+  if (!await startsWith(blob, legacy ? oleMagic : zipMagic)) return false;
   try {
-    if (extension === "key") return await isKeynotePackage(blob);
-    const { parse } = await import("./vendor/webppt/core/core.js");
-    const presentation = await parse(blob);
-    const hasSlides = presentation.slides.length > 0;
-    presentation.dispose?.();
-    return hasSlides;
+    if (legacy) return await hasLegacySlides(blob);
+    return await hasPackageEntry(blob, packageDocument[extension === "key" ? "key" : "pptx"]);
   } catch {
     return false;
   }
