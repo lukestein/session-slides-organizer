@@ -284,6 +284,21 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .preview-button:disabled { cursor: wait; opacity: .6; }
 .source-link { color: var(--muted); white-space: nowrap; text-underline-offset: .15em; }
 .source-link:hover { color: var(--accent); }
+.refresh-source {
+  margin-left: .6em;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+}
+.refresh-source::before { content: "↻ "; text-decoration: none; display: inline-block; margin-right: .1em; }
+.refresh-source:hover { color: var(--accent); }
+.refresh-source:disabled { cursor: wait; opacity: .7; }
 .actions .button { height: 2.75rem; }
 .icon-button {
   display: grid;

@@ -4,6 +4,12 @@
 // preview to a page like this, and only for a deck shared with anyone who has
 // the link. Its preview and name are asked for as soon as such a link is
 // added; the PDF only when someone clicks for it.
+//
+// A link straight to a file — a PDF on a personal site, say — is fetched as
+// soon as it is added, and becomes a file row that remembers where it came
+// from. That only works when the site lets other pages download it (CORS);
+// GitHub Pages does, many university and file-sharing sites do not, and then
+// the row stays a link.
 
 // The names shown for the services people are likely to paste. Anything else
 // is still accepted, and goes by its host name.
@@ -59,7 +65,21 @@ export function parseLink(text) {
   const plain = url.href.replace(/\/$/, "");
   const key = googleId ? `google-slides:${googleId}` : plain;
   const display = `${host}${url.pathname === "/" ? "" : url.pathname}`;
-  return { url: href, key, googleId, service, display };
+  // A host none of the services above, so the address may lead straight to
+  // a file worth fetching.
+  const direct = !googleId && service === host;
+  return { url: href, key, googleId, service, display, direct };
+}
+
+const deckExtensions = /\.(pdf|pptx?|pptm|ppsx?|ppsm|key)$/i;
+
+/** Whether the address ends in the name of a slide file, such as `talk.pdf`. */
+export function looksLikeDeckFile(link) {
+  try {
+    return deckExtensions.test(decodeURIComponent(new URL(link.url).pathname));
+  } catch {
+    return false;
+  }
 }
 
 function googleExport(id, format) {
@@ -108,12 +128,19 @@ function deckNameFrom(disposition) {
     .trim();
 }
 
+async function startsWith(blob, signature) {
+  const head = new Uint8Array(await blob.slice(0, signature.length).arrayBuffer());
+  return signature.every((byte, index) => head[index] === byte);
+}
+const pdfMagic = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
+const zipMagic = [0x50, 0x4b, 0x03, 0x04]; // .pptx and .key are ZIP packages
+const oleMagic = [0xd0, 0xcf, 0x11, 0xe0]; // .ppt, the older binary format
+
 /** The deck as a PDF File, or a thrown error when Google will not hand it over. */
 export async function fetchGooglePdf(id) {
   const response = await fetchFromGoogle(id, "pdf");
   const blob = await response.blob();
-  const magic = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer());
-  if (magic !== "%PDF-") throw new Error("Google did not send a PDF.");
+  if (!await startsWith(blob, pdfMagic)) throw new Error("Google did not send a PDF.");
   const name = deckNameFrom(response.headers.get("Content-Disposition")) || "Google Slides";
   return new File([blob], `${name}.pdf`, { type: "application/pdf" });
 }
@@ -129,4 +156,60 @@ export async function fetchGooglePreview(id) {
   const image = await response.blob();
   if (!image.type.startsWith("image/") || !image.size) throw new Error("Google did not send an image.");
   return { image, name: deckNameFrom(response.headers.get("Content-Disposition")) };
+}
+
+// The filename a download would be saved under: Content-Disposition when the
+// site sends one, else the last part of the address.
+function remoteFilename(response, address) {
+  const fromHeader = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(response.headers.get("Content-Disposition") ?? "")?.[1]
+    ?? /filename\s*=\s*"?([^";]+)"?/i.exec(response.headers.get("Content-Disposition") ?? "")?.[1];
+  let name = "";
+  try {
+    name = decodeURIComponent((fromHeader ?? new URL(address).pathname.split("/").pop() ?? "").trim());
+  } catch {
+    name = "";
+  }
+  return name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim();
+}
+
+// Thrown when the site answered but sent something other than a deck, so
+// asking again will not help, unlike a refusal or a network failure.
+export class NotADeckError extends Error {}
+
+/**
+ * Downloads a slide file straight from the address it was linked at.
+ * Returns a File named as the site names it, or throws when the site refuses,
+ * the network fails, or what comes back is not a PDF, PowerPoint or Keynote
+ * file. The check is on the bytes rather than the address, so a web page or an
+ * image never passes for a deck, and an address without a filename still can.
+ */
+export async function fetchLinkedFile(link) {
+  const response = await fetch(link.url, {
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    cache: "no-store",
+    signal: AbortSignal.timeout(90_000),
+  });
+  if (!response.ok) throw new Error(`The site answered ${response.status}.`);
+  // A web page, a picture or a video is plainly not a deck; stop before
+  // downloading the whole of it.
+  if (/^(?:text\/html|application\/xhtml|image\/|video\/|audio\/)/i.test(response.headers.get("Content-Type") ?? "")) {
+    response.body?.cancel();
+    throw new NotADeckError("The link leads to a web page, not a slide file.");
+  }
+  const blob = await response.blob();
+  let name = remoteFilename(response, response.url || link.url) || link.service;
+  const extension = deckExtensions.exec(name)?.[1].toLowerCase();
+  if (await startsWith(blob, pdfMagic)) {
+    if (extension !== "pdf") name = `${name.replace(/\.[^.]*$/, "") || "Slides"}.pdf`;
+  } else if (!extension || extension === "pdf"
+    || !(await startsWith(blob, zipMagic) || await startsWith(blob, oleMagic))) {
+    throw new NotADeckError("The link does not lead to a PDF, PowerPoint or Keynote file.");
+  }
+  return new File([blob], name, { type: blob.type });
+}
+
+/** A fresh copy of the file a row was fetched from, wherever that was. */
+export function fetchSourceFile(link) {
+  return link.googleId ? fetchGooglePdf(link.googleId) : fetchLinkedFile(link);
 }

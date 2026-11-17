@@ -94,13 +94,17 @@ Google Slides links do more, for decks shared with **Anyone with the link**:
 
 Both ask Google anonymously, without your Google sign-in, which is why a private deck is refused. When **Get PDF** is refused, the organizer offers a **Download the PDF from Google** link, which downloads it in your own browser, signed in. Drop the downloaded file into the list.
 
+**A link straight to a file**, such as `https://example.github.io/talk.pdf`, is downloaded as soon as you add it, when the site allows it. The row becomes an ordinary PDF or PowerPoint row, with a small link to where it came from. Many sites, including GitHub Pages, allow this. Many university and file-sharing sites don't. Then the row stays a link, and if the address ends in a slide filename the organizer says so and offers the link to download it yourself. Such a row also gets a **Get file** button, to try again once the site is back up, or after a session ZIP brings the row back without its file. Importing a ZIP never downloads anything on its own, so it works offline.
+
+**Refresh** appears beside the source link on any row fetched from a link, Google Slides included. It downloads the current version, in case the speaker has changed the deck, and keeps the row's position and any title you typed. It says when nothing has changed, and when the page count has. It only runs when you click it, so a deck never changes under you mid-session.
+
 Other services keep their decks behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
 
-If you import a session ZIP with a saved PDF for a link-only Google Slides row, the row keeps its position and any title you entered. **Open in browser** presents the saved PDF, and **Google Slides ↗** opens the current online deck. If the row already has a PDF, it keeps that copy.
+If you import a session ZIP with a saved copy for a link-only row, the row keeps its position and any title you entered. **Open in browser** presents the saved PDF, and **Google Slides ↗** opens the current online deck. If the row already has a PDF, it keeps that copy.
 
 ## Good to know
 
-**Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the only other service the page contacts is Google: for the preview and name of a Google Slides link when you add one, and for its PDF when you click **Get PDF**. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
+**Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the page contacts only the sites you link to: Google for the preview and name of a Google Slides link when you add one and for its PDF when you click **Get PDF**, and any other link's own site once, when you add it, to see whether it is a slide file. **Refresh** asks again only when clicked. None of these requests carries your cookies or the page's address. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
 
 **What can be opened.**
 
@@ -110,6 +114,7 @@ If you import a session ZIP with a saved PDF for a link-only Google Slides row, 
 | PowerPoint: `.pptx` `.pptm` `.ppsx` `.ppsm`, and the older `.ppt` `.pps` | Yes | Yes | Yes |
 | Keynote `.key` | Preview of the first slide only | **No** | Yes |
 | Link to Google Slides | From Google, with the deck's name. Page count once a PDF is available | On Google, or here with a fetched or restored PDF | PDF and source link when a PDF is available. Link in `session.md` for a link-only row |
+| Link straight to a PDF or PowerPoint file | As a PDF or PowerPoint, when the site allows the download | Here, as a PDF or PowerPoint | The file and its source link, when downloaded. Otherwise a line in `session.md` |
 | Link to anything else | No | On its own site | A line in `session.md` |
 
 - **Keynote decks cannot be shown in the browser.** Apple keeps the slides in a format with no public specification, and no browser-side reader for it exists. A Keynote row still has its preview, a Download button, and a place in the ZIP. To present one from the browser, use **File → Export To** in Keynote and choose PDF or PowerPoint. Some `.key` files are folders rather than single files, and those cannot be added to the list at all.
@@ -137,7 +142,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory docs
 
 Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under `docs/vendor/` with their licenses.
 
-Run the session import and export tests with `node --test tests/session-roundtrip.test.mjs`.
+Run the tests with `node --test tests/`.
 
 ## Project layout
 
@@ -150,7 +155,7 @@ Run the session import and export tests with `node --test tests/session-roundtri
 | `docs/present.html`, `docs/present.mjs` | The presenter shell: bar, keys, blanking, slide picker, full screen |
 | `docs/deck-pdf.mjs`, `docs/deck-pptx.mjs` | One rendering engine per format, behind the presenter |
 | `docs/session-zip.mjs`, `docs/session-manifest.mjs`, `docs/session-import.mjs`, `docs/file-identity.mjs` | Writing a session ZIP and its `session.md`, and reading one back without listing a talk twice |
-| `docs/links.mjs` | Reading a pasted link, and fetching a PDF or preview from Google Slides |
+| `docs/links.mjs` | Reading a pasted link, fetching a PDF or preview from Google Slides, and fetching a file a link points straight at |
 | `docs/vendor/` | Bundled third-party code: PDF.js, fflate, web-ppt, with licenses |
 | `media/` | The demo video and screenshots this README embeds |
 | `demo-recorder/` | The rig that records the video and takes the screenshots; see its own README |
@@ -423,8 +428,13 @@ session, which keeps a page script from reading anything the user can see but ha
 and is also why private decks fail. The fallback is a plain link to the export URL, which the
 browser opens signed in and saves as a download.
 
-This is the one CSP change: `connect-src` adds `https://docs.google.com` (the export endpoint)
-and `https://*.googleusercontent.com` (where it redirects). Google does not document the export
+A link on any other host (not one of the known services) is fetched once when it is added, the
+same anonymous way, and kept only if its first bytes say PDF, or say ZIP or OLE behind a
+PowerPoint or Keynote filename; an HTML, image or media `Content-Type` stops it before the body
+downloads. That needs the site to send CORS headers, which GitHub Pages does and many others don't.
+Because the hosts can be anything, `connect-src` allows `https:`. Requests still omit credentials
+and the referrer, and `script-src` stays `'self'`, so the wider `connect-src` lets the page read
+public files, not run them. Google does not document the export
 URLs as an API. If they stop working, link rows still open, and the error offers the manual
 download. Drive's `/thumbnail` endpoint was tried for previews and rejected: its redirect sends no
 CORS headers.
