@@ -41,6 +41,7 @@ const rowAnimations = new WeakMap();
 let drag;
 let fileDragDepth = 0;
 let previewQueue = Promise.resolve();
+let importQueue = Promise.resolve();
 let tabbing = false;
 
 document.addEventListener("keydown", event => {
@@ -130,7 +131,7 @@ function updateList() {
 
 function moveSlide(slide, destination) {
   const from = slides.indexOf(slide);
-  if (from === destination || destination < 0 || destination >= slides.length) return;
+  if (from < 0 || from === destination || destination < 0 || destination >= slides.length) return;
   slides.splice(from, 1);
   slides.splice(destination, 0, slide);
   list.insertBefore(slide.row, slides[destination + 1]?.row ?? null);
@@ -318,25 +319,35 @@ async function importGooglePdf(slide, button) {
     if (slide.row.isConnected) showProblem(googleRefusal(slide, "a PDF"));
     return;
   }
-  const index = slides.indexOf(slide);
-  if (index < 0) return;
-  // The PDF takes the link's place in the list, keeping its position and any
-  // title someone typed; an untouched title gives way to the deck's own name.
-  const replacement = makeRow({
-    file,
-    extension: "pdf",
-    link: slide.link,
-    presetTitle: slide.named ? slide.friendlyName : "",
-  });
-  slides[index] = replacement;
-  slide.row.replaceWith(replacement.row);
-  releaseUrls(slide);
-  queuePreview(replacement, "pdf");
+  const replacement = replaceLinkWithPdf(slide, file);
+  if (!replacement) return;
   updateList();
   error.hidden = true;
   notice.hidden = true;
   replacement.open.focus();
   announce(`${replacement.friendlyName} is now a PDF in this list.`);
+}
+
+function replaceLinkWithPdf(slide, file, title = "") {
+  const index = slides.indexOf(slide);
+  if (index < 0) return null;
+  const focused = document.activeElement;
+  const replacement = makeRow({
+    file,
+    extension: "pdf",
+    link: slide.link,
+    presetTitle: slide.named ? slide.friendlyName : title,
+  });
+  slides[index] = replacement;
+  slide.row.replaceWith(replacement.row);
+  releaseUrls(slide);
+  queuePreview(replacement, "pdf");
+  if (focused === slide.title) replacement.title.focus();
+  else if (slide.row.contains(focused)) {
+    updateDownload(replacement, index);
+    replacement.open.focus();
+  }
+  return replacement;
 }
 
 const globe = `<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none"
@@ -496,11 +507,21 @@ function findLink(link) {
 // Entries are { file, title, link }, with a file, a link, or both; a title of
 // its own is what a session ZIP brings back, and everything else leaves it
 // empty and takes the filename.
-async function addEntries(entries, { rejected = [], problems = [], note = "" } = {}) {
+function addEntries(entries, options) {
+  // ZIP extraction can overlap. Comparing against the list and inserting into
+  // it have to run together, since comparing file contents can yield.
+  const pending = importQueue.then(() => insertEntries(entries, options));
+  importQueue = pending.catch(() => {});
+  return pending;
+}
+
+async function insertEntries(entries, { rejected = [], problems = [], note = "", sessionName = "" } = {}) {
+  const startedEmpty = slides.length === 0;
   let added = 0;
   const repeats = [];
   const adopted = [];
   const kept = [];
+  const restoredPdfs = [];
   const badLinks = [];
   for (const { file, title, link: address } of entries) {
     // A link from a hand-edited manifest is checked like a pasted one, so
@@ -519,13 +540,16 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
     // Against the list as it stands, which grows as this loop runs, so a drop
     // carrying the same file twice is caught alongside one that repeats a talk
     // already listed.
-    const repeat = (file && await findDuplicate(file, slides)) || findLink(link);
+    const fileRepeat = file && await findDuplicate(file, slides);
+    const repeat = (fileRepeat && slides.includes(fileRepeat) ? fileRepeat : null) || findLink(link);
     if (repeat) {
-      // The file is already here, so only its name is in question. A name
-      // someone chose beats one taken from a filename, and when both sides have
-      // one the list wins, because it is what is on screen and being edited.
+      // Keep the title someone chose in this list. A restored title can take
+      // the place of an automatic name, including when bringing back a PDF.
       const chosen = (chosenTitle || "").trim();
-      if (!chosen || chosen === repeat.friendlyName) {
+      if (!repeat.file && extension === "pdf" && link?.googleId) {
+        const replacement = replaceLinkWithPdf(repeat, file, chosen);
+        restoredPdfs.push(replacement.friendlyName);
+      } else if (!chosen || chosen === repeat.friendlyName) {
         repeats.push(repeat.friendlyName);
       } else if (repeat.named) {
         kept.push(`${repeat.friendlyName}, which the ZIP calls ${chosen}`);
@@ -541,6 +565,11 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
     if (file) queuePreview(slide, extension);
     added++;
   }
+  // An overlapping import may have filled the list while this ZIP unpacked.
+  if (added && startedEmpty && sessionName) {
+    zipName.value = sessionName;
+    exportButton.setAttribute("aria-label", `Download ${archiveStem()}.zip`);
+  }
   updateList();
   const messages = [...problems];
   if (badLinks.length) {
@@ -554,6 +583,9 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
   // Skipping a repeat is the expected outcome, not a failure, so it is said
   // quietly and apart from the errors.
   const notices = [];
+  if (restoredPdfs.length) {
+    notices.push(`Restored saved PDF copies for ${restoredPdfs.join(", ")}. The live Google Slides links are still available.`);
+  }
   if (repeats.length) {
     notices.push(`Already in this session, so not added again: ${repeats.join(", ")}.`);
   }
@@ -566,8 +598,12 @@ async function addEntries(entries, { rejected = [], problems = [], note = "" } =
   }
   notice.hidden = notices.length === 0;
   notice.textContent = notices.join(" ");
-  if (added) announce(`${added} ${added === 1 ? "talk" : "talks"} added.${note}`);
-  else if (notices.length) announce(notice.textContent);
+  if (added) {
+    const restored = restoredPdfs.length ? ` ${notices[0]}` : "";
+    announce(`${added} ${added === 1 ? "talk" : "talks"} added.${note}${restored}`);
+  } else if (notices.length) {
+    announce(notice.textContent);
+  }
   return added;
 }
 
@@ -585,9 +621,8 @@ async function addFiles(files) {
   let manifestText = "";
   let restored = false;
   let sessionName = "";
-  const startedEmpty = slides.length === 0;
 
-  for (const file of files) {
+  for (const file of Array.from(files)) {
     // A running order dragged in beside its decks, rather than inside a ZIP.
     // Anything else ending in .md is not one, and falls through to be rejected
     // like any other file that is not a deck.
@@ -650,13 +685,7 @@ async function addFiles(files) {
   // Not a count: a repeat already in the list is skipped, so the number of
   // files that arrived is not the number that joined the session.
   const note = restored ? " Session order restored." : "";
-  const added = await addEntries(entries, { rejected, problems, note });
-  // Only take the session's name when there was nothing to overwrite.
-  if (added && startedEmpty && sessionName) {
-    zipName.value = sessionName;
-    exportButton.setAttribute("aria-label", `Download ${zipName.value}.zip`);
-  }
-  return added;
+  return addEntries(entries, { rejected, problems, note, sessionName });
 }
 
 function followPointer(y) {
@@ -760,7 +789,7 @@ window.addEventListener("drop", event => {
   else addLinks(event.dataTransfer.getData("text/uri-list"));
 });
 
-async function addTypedLink() {
+function addTypedLink() {
   const text = linkField.value.trim();
   if (!text) {
     linkField.focus();
@@ -771,8 +800,8 @@ async function addTypedLink() {
     linkField.focus();
     return;
   }
-  await addLinks(text);
   linkField.value = "";
+  addLinks(text);
 }
 addLinkButton.addEventListener("click", addTypedLink);
 linkField.addEventListener("keydown", event => {

@@ -2,7 +2,7 @@
 // or as the files someone extracted from one. The manifest decides the order
 // and the titles; anything it does not mention still comes in, after the talks
 // it does, so a file is never silently dropped.
-import { isManifestName, parseManifest, stripPosition } from "./session-manifest.mjs";
+import { isManifestName, manifestName, parseManifest, stripPosition } from "./session-manifest.mjs";
 
 const maxEntrySize = 2 * 1024 * 1024 * 1024;
 const emptyManifest = { sessionName: "", order: [] };
@@ -103,17 +103,26 @@ export async function readSessionZip(file, isSupported) {
   const unpacked = await readZip(file);
   const paths = Object.keys(unpacked).filter(path => !ignorable(path));
 
-  const manifestPath = paths.find(path => isManifestName(basename(path)));
-  const manifest = manifestPath
-    ? parseManifest(new TextDecoder().decode(unpacked[manifestPath]))
-    : emptyManifest;
+  const decoder = new TextDecoder();
+  const readManifest = path => parseManifest(decoder.decode(unpacked[path]));
+  const canonical = paths.find(path => path.toLowerCase() === manifestName)
+    ?? paths.find(path => basename(path).toLowerCase() === manifestName);
+  let manifest = canonical ? readManifest(canonical) : emptyManifest;
+  if (!canonical) {
+    for (const path of paths) {
+      if (!isManifestName(basename(path))) continue;
+      const candidate = readManifest(path);
+      if (!candidate.order.length) continue;
+      manifest = candidate;
+      break;
+    }
+  }
 
   // A ZIP may hold more than slides — notes, a logo, whatever was in the
   // folder. Those are passed over rather than reported, since nobody chose
   // them file by file.
   const candidates = [];
   for (const path of paths) {
-    if (path === manifestPath) continue;
     const name = basename(path);
     const bytes = unpacked[path];
     if (!isSupported(extensionOf(name)) || !bytes?.length) continue;

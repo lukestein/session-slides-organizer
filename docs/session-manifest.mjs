@@ -24,6 +24,13 @@ export function isManifestName(filename) {
 const entryPattern = /^\s*\d+[.)]\s*(.*)$/;
 const filenamePattern = /`([^`]+)`/;
 const linkPattern = /<(https?:\/\/[^>\s]+)>|(https?:\/\/\S+)/i;
+const writtenEntry = /^\*\*(?<title>.+)\*\*\s+[—–-]\s+(?:(?<fence>`+)(?<name>.+?)\k<fence>(?:\s+from\s+<(?<source>https?:\/\/[^>\s]+)>)?|<(?<link>https?:\/\/[^>\s]+)>)$/i;
+
+function filenameSpan(name) {
+  const runs = name.match(/`+/g) ?? [];
+  const fence = "`".repeat(Math.max(0, ...runs.map(run => run.length)) + 1);
+  return fence.length === 1 ? `${fence}${name}${fence}` : `${fence} ${name} ${fence}`;
+}
 
 function stripEmphasis(text) {
   return text.replace(/^\*\*(.*)\*\*$/, "$1").replace(/^\*(.*)\*$/, "$1").trim();
@@ -52,7 +59,7 @@ export function buildManifest(sessionName, entries) {
     // "undefined" in a file someone is meant to be able to read.
     const shown = (title || "").trim()
       || (name ? stripPosition(name).replace(/\.[^.]+$/, "") : "Online slides");
-    const where = [name && `\`${name}\``, link && `<${link}>`].filter(Boolean).join(" from ");
+    const where = [name && filenameSpan(name), link && `<${link}>`].filter(Boolean).join(" from ");
     lines.push(`${index + 1}. **${shown}** — ${where}`);
   });
   return `${lines.join("\n")}\n`;
@@ -69,6 +76,13 @@ export function parseManifest(text) {
     }
     const entry = entryPattern.exec(line)?.[1];
     if (!entry) continue;
+    // Read the source after the bold title as a unit. URLs and code spans in
+    // the title are part of the title, and backticks can also live in a filename.
+    const written = writtenEntry.exec(entry.trimEnd())?.groups;
+    if (written) {
+      order.push({ title: written.title, name: written.name?.trim() ?? "", link: written.source ?? written.link ?? "" });
+      continue;
+    }
     const filename = filenamePattern.exec(entry);
     const link = linkPattern.exec(entry);
     if (!filename && !link) continue;

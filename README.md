@@ -96,6 +96,8 @@ Both ask Google anonymously, without your Google sign-in, which is why a private
 
 Other services keep their decks behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
 
+If your list already has a Google Slides link and you import a session ZIP with a saved PDF for it, the PDF takes that row's place. The Google Slides link still opens the current online deck. If the row already has a PDF, it keeps that copy.
+
 ## Good to know
 
 **Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the only other service the page contacts is Google: for the preview and name of a Google Slides link when you add one, and for its PDF when you click **Get PDF**. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
@@ -134,6 +136,8 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory docs
 ```
 
 Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under `docs/vendor/` with their licenses.
+
+Run the session import and export tests with `node --test tests/session-roundtrip.test.mjs`.
 
 ## Project layout
 
