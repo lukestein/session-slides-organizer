@@ -1,7 +1,7 @@
 // PDF engine for the presenter: one page at a time, fitted to the stage, with
 // a live link layer so clicking a link still works as it does in the browser's
 // own viewer.
-const assets = new URL("./vendor/pdfjs/", import.meta.url);
+import { loadPdf } from "./pdf-document.mjs";
 
 // PDF.js asks a "link service" what to do with a link. The full one lives in
 // pdfjs-dist's web/ bundle, which this site does not vendor, so here is the
@@ -42,19 +42,8 @@ function makeLinkService(pdf, goTo) {
 }
 
 export async function openPdf(stage, data, onPageChange) {
-  const library = await import("./vendor/pdfjs/legacy/build/pdf.min.mjs");
-  library.GlobalWorkerOptions.workerSrc =
-    new URL("legacy/build/pdf.worker.min.mjs", assets).href;
-
-  const pdf = await library.getDocument({
-    data,
-    cMapUrl: new URL("cmaps/", assets).href,
-    cMapPacked: true,
-    standardFontDataUrl: new URL("standard_fonts/", assets).href,
-    wasmUrl: new URL("wasm/", assets).href,
-    iccUrl: new URL("iccs/", assets).href,
-    enableXfa: false,
-  }).promise;
+  const { library, task: loading } = await loadPdf({ data });
+  const pdf = await loading.promise;
 
   const holder = document.createElement("div");
   holder.className = "pdf-page";

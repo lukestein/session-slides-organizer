@@ -3,8 +3,8 @@ import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
 import { readLooseSession, readSessionZip } from "./session-import.mjs";
 import { isManifestName, parseManifest } from "./session-manifest.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
-import { findDuplicate } from "./file-identity.mjs";
-import { fetchGooglePdf, fetchGooglePreview, googlePdfUrl, parseLink } from "./links.mjs";
+import { findDuplicate, fingerprint } from "./file-identity.mjs";
+import { fetchGooglePdf, fetchGooglePreview, fetchLinkedFile, fetchSourceFile, googlePdfUrl, looksLikeDeckFile, NotADeckError, parseLink } from "./links.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -41,7 +41,7 @@ const rowAnimations = new WeakMap();
 let drag;
 let fileDragDepth = 0;
 let previewQueue = Promise.resolve();
-let importQueue = Promise.resolve();
+let listQueue = Promise.resolve();
 let tabbing = false;
 
 document.addEventListener("keydown", event => {
@@ -121,7 +121,7 @@ function updateList() {
   list.hidden = slides.length === 0;
   deckCaveat.hidden = !slides.some(slide => needsCaveat(slide.extension));
   linkCaveat.hidden = !slides.some(slide => !slide.file);
-  googleCaveat.hidden = !slides.some(slide => slide.file && slide.link);
+  googleCaveat.hidden = !slides.some(slide => slide.file && slide.link?.googleId);
   updateArchive();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
@@ -159,6 +159,9 @@ function setMetadata(slide, count, unit) {
     slide.metadata.textContent = `(${slide.link.service})`;
     return;
   }
+  // Kept so a refresh can say whether the deck grew or shrank.
+  slide.count = count;
+  slide.unit = unit;
   const size = formatSize(slide.file.size);
   const quantity = count ? `${count} ${unit}${count === 1 ? "" : "s"}, ` : "";
   slide.metadata.textContent = `(${quantity}${size})`;
@@ -176,6 +179,7 @@ function renameSlide(slide, name) {
 
 function removeSlide(slide) {
   const index = slides.indexOf(slide);
+  if (index < 0) return;
   slides.splice(index, 1);
   slide.row.remove();
   releaseUrls(slide);
@@ -197,6 +201,8 @@ function showPreview(slide, blob) {
   image.src = slide.previewUrl;
 }
 
+// Resolves once the preview and the page or slide count are in, or have
+// failed, which is when a refresh can compare counts.
 function queuePreview(slide, extension) {
   previewQueue = previewQueue.then(async () => {
     if (!slide.row.isConnected) return;
@@ -208,6 +214,7 @@ function queuePreview(slide, extension) {
   }).catch(() => {
     // Keep the file-type label when a preview is missing or unreadable.
   });
+  return previewQueue;
 }
 
 // A link row opens on its own site and has nothing to download. For Google
@@ -223,6 +230,18 @@ function makeLinkControls(slide, { thumbnail, openPdf, download, getPdf }) {
   download.hidden = true;
   thumbnail.classList.add("link-thumbnail");
   thumbnail.insertAdjacentHTML("afterbegin", globe);
+  if (link.direct) {
+    // A link straight to a file gets the same kind of button, to try again
+    // after a site was down or a session was restored without the file. Only
+    // an address naming a slide file gets it: a site that is down and an
+    // ordinary page that refuses other pages fail alike, and most pages refuse.
+    getPdf.textContent = "Get file";
+    getPdf.title = `Download the file from ${link.service}, so the talk works offline and goes in the ZIP`;
+    getPdf.setAttribute("aria-label", `Download the file at ${link.display}`);
+    getPdf.hidden = !looksLikeDeckFile(link);
+    getPdf.addEventListener("click", () => fetchLinkedDeck(slide, { asked: true }));
+    return;
+  }
   if (!link.googleId) return;
 
   // The preview and the deck's name come in one small request, made as soon
@@ -319,29 +338,39 @@ async function importGooglePdf(slide, button) {
     if (slide.row.isConnected) showProblem(googleRefusal(slide, "a PDF"));
     return;
   }
-  const replacement = replaceLinkWithPdf(slide, file);
-  if (!replacement) return;
-  updateList();
-  error.hidden = true;
-  notice.hidden = true;
-  replacement.open.focus();
-  announce(`${replacement.friendlyName} is now a PDF in this list.`);
+  await queueListUpdate(() => {
+    const replacement = replaceWithFile(slide, file);
+    if (!replacement) return;
+    updateList();
+    error.hidden = true;
+    notice.hidden = true;
+    replacement.open.focus();
+    announce(`${replacement.friendlyName} is now a PDF in this list.`);
+  });
 }
 
-function replaceLinkWithPdf(slide, file, title = "") {
+function extensionOf(name) {
+  return /[.]([^.]+)$/.exec(name)?.[1].toLowerCase() ?? "";
+}
+
+// Puts a file in a row's place, keeping its position, its link and any title
+// someone chose: a link that has become a file, or a file fetched again from
+// its source.
+function replaceWithFile(slide, file, title = "") {
   const index = slides.indexOf(slide);
   if (index < 0) return null;
   const focused = document.activeElement;
+  const extension = extensionOf(file.name);
   const replacement = makeRow({
     file,
-    extension: "pdf",
+    extension,
     link: slide.link,
     presetTitle: slide.named ? slide.friendlyName : title,
   });
   slides[index] = replacement;
   slide.row.replaceWith(replacement.row);
   releaseUrls(slide);
-  queuePreview(replacement, "pdf");
+  replacement.previewed = queuePreview(replacement, extension);
   if (focused === slide.title) replacement.title.focus();
   else if (slide.row.contains(focused)) {
     updateDownload(replacement, index);
@@ -350,13 +379,130 @@ function replaceLinkWithPdf(slide, file, title = "") {
   return replacement;
 }
 
+// A link to a file on an ordinary website, fetched as soon as it is pasted,
+// and again whenever Get file is clicked. When the site will not hand it over
+// the row stays a link. On its own that is only worth a word when the address
+// plainly names a slide file, since then someone pasted it expecting the file;
+// a click always gets an answer.
+async function fetchLinkedDeck(slide, { asked = false } = {}) {
+  const button = slide.row.querySelector(".get-pdf");
+  button.disabled = true;
+  slide.metadata.textContent = "(downloading…)";
+  if (asked) announce(`Downloading ${slide.link.display}.`);
+  let file;
+  try {
+    file = await fetchLinkedFile(slide.link);
+  } catch (problem) {
+    if (!slide.row.isConnected) return;
+    setMetadata(slide);
+    button.disabled = false;
+    if (problem instanceof NotADeckError) {
+      // The site answered with something else, and will again.
+      button.hidden = true;
+      if (asked) showProblem(`${slide.link.display} leads to a web page or other file, not slides, so it stays a link.`);
+      return;
+    }
+    // Down, offline, or refusing other pages, which look the same from here.
+    // Most web pages refuse, so only an address naming a slide file is worth
+    // a button to try again later.
+    button.hidden = !looksLikeDeckFile(slide.link);
+    if (asked || looksLikeDeckFile(slide.link)) {
+      const message = document.createDocumentFragment();
+      message.append(
+        `Couldn’t download the file from ${slide.link.service}, so it stays a link. `
+          + "The site may be down or may not let other pages fetch it, or there may be no internet. "
+          + "Try Get file again later, or ",
+        Object.assign(document.createElement("a"), {
+          href: slide.link.url, target: "_blank", rel: "noopener noreferrer", textContent: "open the link",
+        }),
+        ", save the file, and drop it here.",
+      );
+      showProblem(message);
+    }
+    return;
+  }
+  await queueListUpdate(async () => {
+    if (!slides.includes(slide)) return;
+    const repeat = await findDuplicate(file, slides);
+    if (!slides.includes(slide)) return;
+    if (repeat && slides.includes(repeat)) {
+      removeSlide(slide);
+      notice.textContent = `Already in this session, so not added again: ${repeat.friendlyName}.`;
+      notice.hidden = false;
+      return;
+    }
+    const replacement = replaceWithFile(slide, file);
+    updateList();
+    if (asked) error.hidden = true;
+    announce(`${replacement.friendlyName} downloaded from ${slide.link.service}.`);
+  });
+}
+
+function refreshFailure(slide) {
+  if (slide.link.googleId) return googleRefusal(slide, "a new copy");
+  return `Couldn’t download a new copy of “${slide.friendlyName}” from ${slide.link.service}. `
+    + "The copy in this list is unchanged.";
+}
+
+// Fetches the file again from where it came from, in case its author has
+// changed it since. Only ever on a click: a deck should not change under
+// someone in the middle of a session.
+async function refreshFromSource(slide, button) {
+  button.disabled = true;
+  button.textContent = "Refreshing…";
+  announce(`Downloading the current version of ${slide.friendlyName}.`);
+  const restore = () => {
+    button.disabled = false;
+    button.textContent = "Refresh";
+  };
+  let file;
+  try {
+    file = await fetchSourceFile(slide.link);
+  } catch {
+    restore();
+    if (slide.row.isConnected) showProblem(refreshFailure(slide));
+    return;
+  }
+  if (!slide.row.isConnected) return;
+  const [before, after] = await Promise.all([fingerprint(slide.file), fingerprint(file)]);
+  if (!slide.row.isConnected) return;
+  error.hidden = true;
+  if (before && before === after) {
+    restore();
+    notice.textContent = `“${slide.friendlyName}” is already up to date.`;
+    notice.hidden = false;
+    announce(notice.textContent);
+    return;
+  }
+  const { count, unit } = slide;
+  const replacement = await queueListUpdate(() => {
+    const refreshHadFocus = document.activeElement === button;
+    const updated = replaceWithFile(slide, file);
+    if (!updated) return null;
+    updateList();
+    if (refreshHadFocus) updated.refresh.focus();
+    return updated;
+  });
+  if (!replacement) return;
+  await replacement.previewed;
+  if (!replacement.row.isConnected) return;
+  let change = "";
+  if (count && replacement.count && replacement.count !== count) {
+    const direction = replacement.count < count ? "down" : "up";
+    change = ` It now has ${plural(replacement.count, replacement.unit)}, ${direction} from ${plural(count, unit)}.`;
+  }
+  notice.textContent = `Updated “${replacement.friendlyName}” from ${replacement.link.service}.${change}`;
+  notice.hidden = false;
+  announce(notice.textContent);
+}
+
 const globe = `<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>
 </svg>`;
 
-// A row holds a file, a link, or both: a PDF fetched from Google Slides
-// remembers where it came from. `link` is what parseLink() returns.
+// A row holds a file, a link, or both: a file fetched from Google Slides or
+// from a link straight to it remembers where it came from. `link` is what parseLink() returns.
 function makeRow({ file = null, extension = "", link = null, presetTitle = "" }) {
   const row = template.content.firstElementChild.cloneNode(true);
   const title = row.querySelector(".title");
@@ -399,7 +545,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
   if (file) {
     openPdf.setAttribute("aria-label", `Open in browser: ${file.name}`);
     download.setAttribute("aria-label", `Download ${file.name}`);
-    if (link) {
+    if (link?.googleId) {
       // The dagger points at the note on what a PDF from Google leaves out.
       for (const button of [openPdf, download]) {
         button.append(Object.assign(document.createElement("b"), {
@@ -410,12 +556,21 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
         `Open in browser: ${file.name}. Saved from Google Slides, without animations, video or audio.`);
       download.setAttribute("aria-label",
         `Download ${file.name}. Saved from Google Slides, without animations, video or audio.`);
-      // Where the PDF came from, for presenting from the live deck instead.
+    }
+    if (link) {
+      // Where the file came from, for presenting from the live deck instead,
+      // and for fetching it again once its author has changed it.
       const source = row.querySelector(".source-link");
       source.href = link.url;
       source.textContent = `${link.service} ↗`;
       source.setAttribute("aria-label", `Open the original in ${link.service}`);
       source.hidden = false;
+      const refresh = row.querySelector(".refresh-source");
+      refresh.title = `Download the current version from ${link.service}`;
+      refresh.setAttribute("aria-label", `Refresh ${file.name} from ${link.service}`);
+      refresh.hidden = false;
+      refresh.addEventListener("click", () => refreshFromSource(slide, refresh));
+      slide.refresh = refresh;
     }
   } else {
     makeLinkControls(slide, { thumbnail, openPdf, download, getPdf });
@@ -477,7 +632,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
   remove.addEventListener("click", () => removeSlide(slide));
   row.addEventListener("pointerdown", event => {
     if (drag || !event.isPrimary || event.button !== 0) return;
-    if (event.target.closest("input, a, .remove, .get-pdf, .preview-button")) return;
+    if (event.target.closest("input, a, button:not(.order)")) return;
     if (event.pointerType !== "mouse" && !handle.contains(event.target)) return;
     drag = {
       slide,
@@ -504,18 +659,21 @@ function findLink(link) {
   return link && slides.find(slide => slide.link?.key === link.key);
 }
 
-// Entries are { file, title, link }, with a file, a link, or both; a title of
-// its own is what a session ZIP brings back, and everything else leaves it
-// empty and takes the filename.
-function addEntries(entries, options) {
-  // ZIP extraction can overlap. Comparing against the list and inserting into
-  // it have to run together, since comparing file contents can yield.
-  const pending = importQueue.then(() => insertEntries(entries, options));
-  importQueue = pending.catch(() => {});
+function queueListUpdate(update) {
+  // Downloads and extraction can overlap. The duplicate check and the list
+  // update run together, since comparing file contents can yield.
+  const pending = listQueue.then(update);
+  listQueue = pending.catch(() => {});
   return pending;
 }
 
-async function insertEntries(entries, { rejected = [], problems = [], note = "", sessionName = "" } = {}) {
+function addEntries(entries, options) {
+  return queueListUpdate(() => insertEntries(entries, options));
+}
+
+// Entries can carry a file, a link, or both. An empty title uses the row's
+// default, which comes from the filename or the link.
+async function insertEntries(entries, { rejected = [], problems = [], note = "", sessionName = "", fetchLinks = false } = {}) {
   const startedEmpty = slides.length === 0;
   let added = 0;
   const repeats = [];
@@ -523,6 +681,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
   const kept = [];
   const restoredPdfs = [];
   const badLinks = [];
+  const toFetch = [];
   for (const { file, title, link: address } of entries) {
     // A link from a hand-edited manifest is checked like a pasted one, so
     // nothing but an http(s) address ever becomes something to click.
@@ -532,7 +691,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
     // An untitled link goes into session.md under its service's name, which
     // is a placeholder rather than a name anyone chose.
     const chosenTitle = !file && title === link.service ? "" : title;
-    const extension = file ? /[.]([^.]+)$/.exec(file.name)?.[1].toLowerCase() : "";
+    const extension = file ? extensionOf(file.name) : "";
     if (file && (!supported(extension) || file.size === 0)) {
       rejected.push(file.name);
       continue;
@@ -546,8 +705,8 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
       // Keep the title someone chose in this list. A restored title can take
       // the place of an automatic name, including when bringing back a PDF.
       const chosen = (chosenTitle || "").trim();
-      if (!repeat.file && extension === "pdf" && link?.googleId) {
-        const replacement = replaceLinkWithPdf(repeat, file, chosen);
+      if (!repeat.file && file && link) {
+        const replacement = replaceWithFile(repeat, file, chosen);
         restoredPdfs.push(replacement.friendlyName);
       } else if (!chosen || chosen === repeat.friendlyName) {
         repeats.push(repeat.friendlyName);
@@ -563,6 +722,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
     slides.push(slide);
     list.append(slide.row);
     if (file) queuePreview(slide, extension);
+    else if (fetchLinks && link.direct) toFetch.push(slide);
     added++;
   }
   // An overlapping import may have filled the list while this ZIP unpacked.
@@ -584,7 +744,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
   // quietly and apart from the errors.
   const notices = [];
   if (restoredPdfs.length) {
-    notices.push(`Restored saved PDF copies for ${restoredPdfs.join(", ")}. The live Google Slides links are still available.`);
+    notices.push(`Restored saved copies for ${restoredPdfs.join(", ")}. The links they came from are still available.`);
   }
   if (repeats.length) {
     notices.push(`Already in this session, so not added again: ${repeats.join(", ")}.`);
@@ -604,6 +764,8 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
   } else if (notices.length) {
     announce(notice.textContent);
   }
+  // After the messages above, so a download that fails can still say so.
+  toFetch.forEach(slide => fetchLinkedDeck(slide));
   return added;
 }
 
@@ -761,7 +923,7 @@ function hasFiles(event) {
 function addLinks(text) {
   const addresses = text.split(/\r?\n/).map(line => line.trim()).filter(line => line && !line.startsWith("#"));
   if (!addresses.length) return Promise.resolve(0);
-  return addEntries(addresses.map(link => ({ link, title: "" })));
+  return addEntries(addresses.map(link => ({ link, title: "" })), { fetchLinks: true });
 }
 
 window.addEventListener("dragenter", event => {
