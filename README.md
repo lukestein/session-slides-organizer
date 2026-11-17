@@ -96,6 +96,8 @@ Both ask Google anonymously, without your Google sign-in, which is why a private
 
 Other services keep their decks behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
 
+If you import a session ZIP with a saved PDF for a link-only Google Slides row, the row keeps its position and any title you entered. **Open in browser** presents the saved PDF, and **Google Slides ↗** opens the current online deck. If the row already has a PDF, it keeps that copy.
+
 ## Good to know
 
 **Your list lives in the open tab.** There is no account and nothing is saved on a server. Apart from PairDrop, the only other service the page contacts is Google: for the preview and name of a Google Slides link when you add one, and for its PDF when you click **Get PDF**. Closing the tab clears the list, so download the session ZIP if you want to keep your running order.
@@ -107,7 +109,7 @@ Other services keep their decks behind their own sign-in and offer no comparable
 | PDF | Yes | Yes, links included | Yes |
 | PowerPoint: `.pptx` `.pptm` `.ppsx` `.ppsm`, and the older `.ppt` `.pps` | Yes | Yes | Yes |
 | Keynote `.key` | Preview of the first slide only | **No** | Yes |
-| Link to Google Slides | From Google, with the deck's name; the count after **Get PDF** | On Google, or here after **Get PDF** | As a PDF, after **Get PDF**; otherwise a line in `session.md` |
+| Link to Google Slides | From Google, with the deck's name. Page count once a PDF is available | On Google, or here with a fetched or restored PDF | PDF and source link when a PDF is available. Link in `session.md` for a link-only row |
 | Link to anything else | No | On its own site | A line in `session.md` |
 
 - **Keynote decks cannot be shown in the browser.** Apple keeps the slides in a format with no public specification, and no browser-side reader for it exists. A Keynote row still has its preview, a Download button, and a place in the ZIP. To present one from the browser, use **File → Export To** in Keynote and choose PDF or PowerPoint. Some `.key` files are folders rather than single files, and those cannot be added to the list at all.
@@ -134,6 +136,8 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory docs
 ```
 
 Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under `docs/vendor/` with their licenses.
+
+Run the session import and export tests with `node --test tests/session-roundtrip.test.mjs`.
 
 ## Project layout
 
@@ -363,14 +367,19 @@ address (for Google Slides, by deck ID, whatever view the address opens), so pas
 lists it once. Only `http` and `https` addresses become links, whether pasted or read from a
 hand-edited `session.md`.
 
+In exported entries, the filename and link follow the bold title. A filename containing backticks
+uses a longer backtick delimiter so the filename and title can both be restored.
+
 Dropping that ZIP back in rebuilds the session: the order and the edited titles return, the
 heading becomes the ZIP's name again when the list started empty, and the positional `1. ` prefixes
 come off the filenames, since position is the list's job and is reapplied on the way out.
 
-The manifest is the running order, not a record of one. Reorder its lines and the session comes
-back in that order; rewrite a title and the new one is used. Anything in the ZIP the manifest does
-not mention is still added, after the talks it does, so a file is never silently dropped; anything
-the manifest names but the ZIP lacks is reported.
+Reordering the manifest lines changes the order on import, and editing a title changes the title
+on import. Unlisted decks are added after the talks in the manifest. If a listed deck is missing,
+the importer uses its source link when available and reports the missing filename otherwise.
+
+Inside a ZIP, `session.md` takes priority over other Markdown files. If it is absent, the importer
+looks for a Markdown file with a running order, so a renamed manifest still works.
 
 The ZIP does not have to stay a ZIP. Unpack it and drag the files in — `session.md` among them —
 and the running order is applied just the same, whatever order the desktop hands them over in.
@@ -378,11 +387,9 @@ The importer reads any Markdown file dropped with the slides as a candidate runn
 renaming `session.md` to something meaningful does not break it; a Markdown file that holds no
 running order is rejected like any other file that is not a deck.
 
-Without a manifest, files that all carry a positional prefix are still treated as a session: they
-are put in numerical order and the prefixes come off, since that is what the export leaves behind.
-Numbers are compared as numbers, so a session runs past nine talks without `10.` sorting before
-`2.`. Files that are not numbered that way keep the order they were dropped in, under their own
-names.
+For loose drops without a manifest, multiple decks that all carry a positional prefix are put in
+numerical order and the prefixes come off. This puts `2.` before `10.`. Other loose drops keep
+their original file names and drop order.
 
 Dropping onto a list that already has talks adds to the end, so two sessions can be combined, and
 a drop can mix an archive with loose files. Loose files stay together as one group, at the place
@@ -393,8 +400,9 @@ renames decks as it numbers them, and a title someone edited travels in the mani
 comparison is of the file's contents, hashed with SHA-256. Dropping the same ZIP in twice, or
 dropping a session ZIP over the loose decks it was built from, leaves the list as it is and says
 which talks were already there. Sizes are compared first, so the hash only runs when two files
-could actually be the same. Remove a talk and it can be added again; the comparison is against
-the list as it stands, not a history of it.
+could actually be the same. ZIPs can unpack independently, and batches enter the list one at a time
+so overlapping drops see the files already added. The check uses the current list, so a talk can
+be added again after it is removed.
 
 That leaves the names to settle, since the repeat and the talk already listed may be called
 different things. A name someone chose beats one taken from a filename: a paper sitting in the
