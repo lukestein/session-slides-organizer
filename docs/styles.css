@@ -1,3 +1,22 @@
+/* Instrument Sans, bundled so every computer shows the same type. SIL Open
+   Font License; see vendor/instrument-sans/LICENSE. */
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url(./vendor/instrument-sans/instrument-sans-latin-wght-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url(./vendor/instrument-sans/instrument-sans-latin-ext-wght-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
 :root {
   font-family: "Instrument Sans", system-ui, sans-serif;
   color: #1c3028;
@@ -19,18 +38,8 @@ button, input, a { font: inherit; }
 .shell { width: min(100% - 3rem, 71rem); margin-inline: auto; }
 .masthead { background: #006644; color: #fff; }
 .masthead-inner { display: flex; align-items: center; gap: .7rem; min-height: 3.75rem; }
-.wordmark-icon {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: .55rem;
-  background: #e3eddf;
-  color: #005238;
-  font-size: 1.28rem;
-  font-weight: 700;
-}
-.masthead h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
+.wordmark-icon { flex: none; width: 2.25rem; height: 2.25rem; }
+.masthead h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.015em; }
 main {
   --order-width: 4rem;
   --preview-width: 6.5rem;
@@ -68,6 +77,46 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   background: #edf4eb;
 }
 .drop-zone.active { border-color: var(--accent); background: #deeddf; }
+
+/* Before anything is added, the drop zone is the page: larger, and centred
+   rather than lined up with rows that are not there yet. */
+#slides[hidden] + .drop-zone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 15rem;
+  padding: 2.25rem 1.25rem 2.75rem;
+  border-width: 2px;
+  border-radius: 1rem;
+  text-align: center;
+}
+#slides[hidden] + .drop-zone .add-icon {
+  width: 3.6rem;
+  height: 3.6rem;
+  margin-bottom: .9rem;
+  border-radius: 50%;
+  font-size: 2rem;
+  box-shadow: 0 2px 6px #1236250f;
+}
+#slides[hidden] + .drop-zone .drop-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+}
+#slides[hidden] + .drop-zone h2 { font-size: 1.35rem; }
+#slides[hidden] + .drop-zone .link-entry { justify-content: center; width: min(100%, 30rem); margin-top: 1.1rem; }
+#slides[hidden] + .drop-zone .receive-actions {
+  position: absolute;
+  right: .75rem;
+  bottom: .55rem;
+  flex-direction: row;
+  gap: .9rem;
+  margin: 0;
+}
 #export:disabled { cursor: wait; opacity: .7; }
 .zip-row { margin-top: 1rem; border: 1px solid transparent; border-top: 3px solid var(--accent); border-radius: 0; }
 .zip-preview { grid-column: 2; }
@@ -132,11 +181,64 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   cursor: pointer;
 }
 .receive-actions :is(a, button):is(:hover, :focus-visible) { color: var(--accent); }
+
+.list-tools { display: flex; justify-content: flex-end; margin-top: .35rem; }
+.text-button {
+  padding: .2rem 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: .78rem;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+}
+.text-button:hover { color: #9d2544; }
+
+/* A word on what the tool does, shown only while the list is empty. */
+.how-it-works {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin: 1.75rem 0 .5rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.5;
+}
+#slides:not([hidden]) ~ .how-it-works { display: none; }
+.how-it-works li { counter-increment: step; }
+.how-it-works li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-bottom: .55rem;
+  border-radius: 50%;
+  background: #e3eddf;
+  color: var(--accent);
+  font-size: .8rem;
+  font-weight: 700;
+}
+.how-it-works b { display: block; margin-bottom: .15rem; color: var(--ink); font-weight: 650; }
+.how-it-works em { font-style: normal; font-weight: 600; color: var(--ink); }
+main kbd {
+  padding: 0 .3rem;
+  border: 1px solid #c9d7c8;
+  border-bottom-width: 2px;
+  border-radius: .25rem;
+  background: var(--paper);
+  font: inherit;
+  font-size: .78rem;
+}
 .drop-copy h2 { font-size: 1.1rem; letter-spacing: -.025em; }
 .drop-copy p { margin-top: .25rem; color: var(--muted); font-size: .9rem; }
-.link-entry { display: flex; gap: .4rem; max-width: 34rem; margin-top: .6rem; }
+.link-entry { display: flex; flex-wrap: wrap; gap: .4rem; max-width: 34rem; margin-top: .6rem; }
 .link-entry input {
-  flex: 1 1 auto;
+  flex: 1 1 15rem;
   min-width: 0;
   height: 2.25rem;
   padding: .3rem .55rem;
@@ -326,6 +428,7 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   .slide-name, .drop-copy { grid-column: 3 / -1; }
   .receive-actions { grid-column: 2 / -1; grid-row: 2; }
   .actions { grid-column: 2 / 4; grid-row: 2; width: min(100%, var(--action-width)); justify-self: end; }
+  .how-it-works { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .remove { grid-column: 4; grid-row: 2; }
 }
 @media (max-width: 440px) {
@@ -335,6 +438,11 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
   .order { padding-inline: .2rem; gap: .18rem; }
   .actions .button { padding-inline: .3rem; font-size: .75rem; }
   .file-details { flex-wrap: wrap; row-gap: .1rem; }
+  .how-it-works { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .how-it-works li { position: relative; padding-left: 2.4rem; }
+  .how-it-works li::before { position: absolute; left: 0; top: 0; }
+  #slides[hidden] + .drop-zone { padding-bottom: 3.5rem; }
+  #slides[hidden] + .drop-zone .receive-actions { left: .75rem; justify-content: center; }
 }
 
 /* Presenter page (present.html) */
