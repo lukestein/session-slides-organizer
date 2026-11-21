@@ -4,6 +4,7 @@ import { readLooseSession, readSessionZip } from "./session-import.mjs";
 import { isManifestName, parseManifest } from "./session-manifest.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
 import { findDuplicate, fingerprint } from "./file-identity.mjs";
+import { clearSession, loadSession, saveSession } from "./session-store.mjs";
 import { fetchGooglePdf, fetchGooglePreview, fetchLinkedFile, fetchSourceFile, googlePdfUrl, looksLikeDeckFile, NotADeckError, parseLink } from "./links.mjs";
 
 const formats = {
@@ -35,6 +36,7 @@ const linkCaveat = document.querySelector("#link-caveat");
 const googleCaveat = document.querySelector("#google-caveat");
 const linkField = document.querySelector("#link");
 const addLinkButton = document.querySelector("#add-link");
+const clearButton = document.querySelector("#clear-list");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -123,10 +125,12 @@ function updateList() {
   linkCaveat.hidden = !slides.some(slide => !slide.file);
   googleCaveat.hidden = !slides.some(slide => slide.file && slide.link?.googleId);
   updateArchive();
+  clearButton.hidden = slides.length === 0;
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
     updateDownload(slide, index);
   });
+  scheduleSave();
 }
 
 function moveSlide(slide, destination) {
@@ -503,7 +507,7 @@ const globe = `<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24
 
 // A row holds a file, a link, or both: a file fetched from Google Slides or
 // from a link straight to it remembers where it came from. `link` is what parseLink() returns.
-function makeRow({ file = null, extension = "", link = null, presetTitle = "" }) {
+function makeRow({ file = null, extension = "", link = null, presetTitle = "", id = newId() }) {
   const row = template.content.firstElementChild.cloneNode(true);
   const title = row.querySelector(".title");
   const handle = row.querySelector(".order");
@@ -528,7 +532,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
   const metadata = row.querySelector(".metadata");
   // `named` records that this talk has a name someone chose — typed here, or
   // carried in a session manifest — as opposed to the stem of its filename.
-  const slide = { row, file, link, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: Boolean(file) && canPresent(extension) };
+  const slide = { id, row, file, link, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: Boolean(file) && canPresent(extension) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;
@@ -598,6 +602,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "" })
     title.defaultValue = slide.friendlyName;
     updateDownload(slide, slides.indexOf(slide));
     updateArchive();
+    scheduleSave();
   });
   title.addEventListener("blur", () => {
     title.value = slide.friendlyName;
@@ -682,7 +687,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
   const restoredPdfs = [];
   const badLinks = [];
   const toFetch = [];
-  for (const { file, title, link: address } of entries) {
+  for (const { file, title, link: address, id } of entries) {
     // A link from a hand-edited manifest is checked like a pasted one, so
     // nothing but an http(s) address ever becomes something to click.
     const link = address ? parseLink(address) : null;
@@ -718,7 +723,7 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
       }
       continue;
     }
-    const slide = makeRow({ file, extension, link, presetTitle: chosenTitle });
+    const slide = makeRow({ file, extension, link, presetTitle: chosenTitle, id });
     slides.push(slide);
     list.append(slide.row);
     if (file) queuePreview(slide, extension);
@@ -1021,6 +1026,7 @@ picker.addEventListener("change", () => {
   picker.value = "";
 });
 
+zipName.addEventListener("input", scheduleSave);
 zipName.addEventListener("focus", () => {
   if (tabbing) zipName.select();
 });
@@ -1089,3 +1095,144 @@ window.addEventListener("pageshow", event => {
     for (const slide of slides) slide.title.value = slide.friendlyName;
   });
 });
+
+// Saving the list in this browser. See session-store.mjs.
+//
+// Only one organizer tab saves: a second tab would otherwise overwrite the
+// first tab's list with its own. The tab holding the lock restores the saved
+// list and keeps it up to date; any other tab works as before, unsaved, and
+// says so.
+let saving = "off"; // "off" until restored, then "idle", "pending" or "failed"
+let saveTimer;
+let saveRunning = Promise.resolve();
+let warnedOfFailure = false;
+
+function newId() {
+  return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function snapshot() {
+  return {
+    zipName: zipName.value.trim(),
+    rows: slides.map(slide => ({
+      id: slide.id,
+      file: slide.file,
+      link: slide.link?.url ?? "",
+      title: slide.named ? slide.friendlyName : "",
+    })),
+  };
+}
+
+function scheduleSave() {
+  if (saving === "off") return;
+  saving = "pending";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 400);
+}
+
+function saveNow() {
+  clearTimeout(saveTimer);
+  if (saving !== "pending") return saveRunning;
+  const state = snapshot();
+  saveRunning = saveRunning.then(async () => {
+    const ok = await saveSession(state);
+    // A change made while this was writing has scheduled its own save.
+    if (saving === "pending" && saveTimer) return;
+    saving = ok ? "idle" : "failed";
+    if (ok) warnedOfFailure = false;
+    else if (!warnedOfFailure && slides.length) {
+      warnedOfFailure = true;
+      notice.textContent = "This browser couldn’t keep a copy of the list, perhaps because its storage is full. "
+        + "Download the session ZIP before closing this tab.";
+      notice.hidden = false;
+    }
+  });
+  saveTimer = undefined;
+  return saveRunning;
+}
+
+function describeWhen(time) {
+  const then = new Date(time);
+  const sameDay = then.toDateString() === new Date().toDateString();
+  const clock = then.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return sameDay
+    ? `earlier today, at ${clock}`
+    : `on ${then.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}, at ${clock}`;
+}
+
+function restoreSession() {
+  return queueListUpdate(async () => {
+    const saved = await loadSession();
+    if (saved?.rows.length) {
+      const sessionName = saved.zipName && saved.zipName !== zipName.defaultValue ? saved.zipName : "";
+      const added = await insertEntries(saved.rows, { sessionName });
+      if (added) {
+        error.hidden = true;
+        notice.textContent = `Brought back the list of ${plural(added, "talk")} last changed in this browser ${describeWhen(saved.savedAt)}. `
+          + "Use Clear list to start a new session.";
+        notice.hidden = false;
+        announce(notice.textContent);
+      }
+    }
+    saving = "idle";
+    // Saves what this tab holds now, including anything dropped in meanwhile.
+    scheduleSave();
+  });
+}
+
+function startSaving() {
+  if (!("indexedDB" in window)) return;
+  if (!navigator.locks) {
+    restoreSession();
+    return;
+  }
+  navigator.locks.request("session-slides-organizer", { ifAvailable: true }, lock => {
+    if (!lock) {
+      notice.textContent = "This list is open in another tab, which keeps it saved. "
+        + "Changes made here aren’t kept after this tab closes.";
+      notice.hidden = false;
+      return undefined;
+    }
+    restoreSession();
+    // Held until the tab closes.
+    return new Promise(() => {});
+  });
+}
+
+clearButton.addEventListener("click", async () => {
+  if (!slides.length) return;
+  if (!confirm(`Remove all ${plural(slides.length, "talk")} from this list? `
+    + "Download the session ZIP first if you want to keep them.")) return;
+  await queueListUpdate(async () => {
+    for (const slide of slides.splice(0)) {
+      slide.row.remove();
+      releaseUrls(slide);
+    }
+    zipName.value = zipName.defaultValue;
+    exportButton.setAttribute("aria-label", `Download ${archiveStem()}.zip`);
+    error.hidden = true;
+    notice.hidden = true;
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    await saveRunning;
+    if (saving !== "off") saving = (await clearSession()) ? "idle" : "failed";
+    updateList();
+  });
+  browse.focus();
+  announce("List cleared.");
+});
+
+// The list survives the tab closing once it is saved, so the browser's "Leave
+// site?" question is only asked when the latest change is not saved yet, or
+// could not be.
+window.addEventListener("beforeunload", event => {
+  if (!slides.length || saving === "idle") return;
+  if (saving === "pending") saveNow();
+  event.preventDefault();
+  event.returnValue = "";
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveNow();
+});
+
+startSaving();
