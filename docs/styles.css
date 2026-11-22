@@ -36,10 +36,131 @@ button, input, a { font: inherit; }
 :focus-visible { outline: 3px solid #597c31; outline-offset: 3px; }
 
 .shell { width: min(100% - 3rem, 71rem); margin-inline: auto; }
-.masthead { background: #006644; color: #fff; }
-.masthead-inner { display: flex; align-items: center; gap: .7rem; min-height: 3.75rem; }
-.wordmark-icon { flex: none; width: 2.25rem; height: 2.25rem; }
-.masthead h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.015em; }
+/* The masthead. With an empty list (.hero) the address is spelled out as three
+   numbered slides, centred above the name and the promise. Once a talk is
+   added the slides shrink into a stack on a green square, which is the site's
+   icon, and "org" ends up on the front slide. Every piece is positioned
+   absolutely in both states so the change can be a plain transition; app.mjs
+   adds .animate once the saved list has been restored, so a refresh does not
+   replay it. */
+.masthead {
+  --u: calc(2.75rem / 32);      /* one unit of the 32-unit favicon grid */
+  --tw: min(8rem, (100vw - 3rem) * .3);  /* hero slide width */
+  --stack-top: .625rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.masthead-inner {
+  position: relative;
+  height: 4rem;
+}
+.masthead.hero .masthead-inner { height: calc(2.25rem + var(--tw) * .5625 + 8.4rem); }
+.brand-mark { position: absolute; inset: 0; pointer-events: none; }
+.brand-square {
+  position: absolute;
+  left: 0;
+  top: var(--stack-top);
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: calc(var(--u) * 7);
+  background: var(--accent);
+}
+.masthead.hero .brand-square { opacity: 0; transform: scale(.85); }
+.tile {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 16);
+  height: calc(var(--u) * 11.5);
+  border-radius: calc(var(--u) * 2);
+  font-size: calc(var(--u) * 7.6);
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tile small {
+  position: absolute;
+  top: 5%;
+  left: 7%;
+  font-size: calc(var(--tw) * .1);
+  font-weight: 500;
+  opacity: 0;
+}
+/* Compact: the stack, front to back org, slide, .org, as in favicon.svg. */
+.tile-2 { z-index: 3; left: calc(var(--u) * 6); top: calc(var(--stack-top) + var(--u) * 13); background: #fff; color: var(--accent); }
+.tile-1 { z-index: 2; left: calc(var(--u) * 8.5); top: calc(var(--stack-top) + var(--u) * 9.25); background: #a9d3b9; color: #a9d3b9; }
+.tile-3 { z-index: 1; left: calc(var(--u) * 11); top: calc(var(--stack-top) + var(--u) * 5.5); background: #5fa47f; color: #5fa47f; }
+/* Hero: a row of three 16:9 slides reading slide · org · .org. */
+.masthead.hero .tile {
+  top: 2.25rem;
+  width: var(--tw);
+  height: calc(var(--tw) * .5625);
+  border-radius: calc(var(--tw) * .07);
+  font-size: calc(var(--tw) * .27);
+}
+.masthead.hero .tile small { opacity: .75; }
+.masthead.hero .tile-1 { left: calc(50% - var(--tw) * 1.57); background: #e3efe7; color: var(--ink); }
+.masthead.hero .tile-2 { left: calc(50% - var(--tw) * .5); background: #a9d3b9; color: #00402b; }
+.masthead.hero .tile-3 { left: calc(50% + var(--tw) * .57); background: var(--accent); color: #fff; }
+.masthead h1 {
+  position: absolute;
+  left: 3.6rem;
+  top: 50%;
+  transform: translate(0, -50%);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  white-space: nowrap;
+}
+.masthead.hero h1 {
+  left: 50%;
+  top: calc(2.25rem + var(--tw) * .5625 + 1.1rem);
+  transform: translate(-50%, 0);
+  font-size: 1.6rem;
+}
+.tagline, .benefits {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+}
+.tagline { top: calc(2.25rem + var(--tw) * .5625 + 3.4rem); font-size: 1rem; }
+.benefits { top: calc(2.25rem + var(--tw) * .5625 + 5.2rem); color: var(--muted); font-size: .8rem; line-height: 1.45; }
+.benefits span[aria-hidden] { color: #5fa47f; margin: 0 .2em; }
+.masthead.hero :is(.tagline, .benefits) { opacity: 1; visibility: visible; }
+.masthead .site-address {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: .9rem;
+}
+.masthead.hero .site-address { opacity: 0; visibility: hidden; }
+.site-address { font-weight: 600; white-space: nowrap; }
+.site-address b { color: var(--accent); font-weight: inherit; }
+.site-address i { color: #5fa47f; font-style: normal; }
+@media (max-width: 34rem) {
+  .masthead.hero .masthead-inner { height: calc(2.25rem + var(--tw) * .5625 + 9.6rem); }
+  .masthead .site-address { display: none; }
+  .tagline { font-size: .9rem; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .masthead.animate :is(.masthead-inner, .brand-square, .tile, h1) {
+    transition: .7s cubic-bezier(.65, 0, .35, 1);
+    transition-property: height, left, top, width, transform, opacity, border-radius, font-size, background-color, color;
+  }
+  .masthead.animate .tile small { transition: opacity .2s; }
+  .masthead.animate :is(.tagline, .benefits, .site-address) { transition: opacity .35s, visibility .35s; }
+  /* Collapsing, the promise goes first and the address arrives last;
+     expanding, the other way round. */
+  .masthead.animate:not(.hero) .site-address { transition-delay: .45s; }
+  .masthead.animate.hero :is(.tagline, .benefits, .tile small) { transition-delay: .45s; }
+  .masthead.animate:not(.hero) .brand-square { transition-delay: .15s; }
+}
 main {
   --order-width: 4rem;
   --preview-width: 6.5rem;
@@ -59,7 +180,6 @@ main {
   border-radius: .8rem;
 }
 h1, h2, p { margin: 0; }
-.intro { margin-bottom: 1rem; color: var(--muted); font-size: .88rem; line-height: 1.55; }
 .caveat {
   margin: 1.25rem 0 0;
   color: var(--muted);
@@ -488,6 +608,20 @@ main kbd {
   background: #1b1b21;
   border-bottom: 1px solid #2c2c34;
 }
+
+/* The site's mark, quietly, ahead of the talk's title; it hides with the rest
+   of the bar in full screen. */
+.deck-brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: .45rem;
+  color: #dfe8e2;
+  font-size: .85rem;
+}
+.deck-brand svg { display: block; }
+.deck-brand .site-address b { color: #a9d3b9; }
+.deck-brand::after { content: "/"; margin-left: .3rem; color: #6b6b76; font-weight: 400; }
 
 .deck-title {
   flex: 0 1 auto;

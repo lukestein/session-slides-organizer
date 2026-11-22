@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="Present slides from the Session Slides Organizer.">
+  <meta name="description" content="Present slides from Slide Organizer.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Presenting</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -14,6 +14,15 @@
 <body class="deck-body">
   <div class="deck-page">
     <div class="deck-bar">
+      <span class="deck-brand" title="Slide Organizer">
+        <svg aria-hidden="true" viewBox="0 0 32 32" width="20" height="20">
+          <rect width="32" height="32" rx="7" fill="#006644"/>
+          <rect x="11" y="5.5" width="16" height="11.5" rx="2" fill="#5fa47f"/>
+          <rect x="8.5" y="9.25" width="16" height="11.5" rx="2" fill="#a9d3b9"/>
+          <rect x="6" y="13" width="16" height="11.5" rx="2" fill="#fff"/>
+        </svg>
+        <span class="site-address">slide<b>org</b><i>.org</i></span>
+      </span>
       <span class="deck-title" id="deck-title"></span>
       <span class="deck-source" id="deck-source" hidden></span>
       <span class="deck-count" id="deck-count" role="status"></span>

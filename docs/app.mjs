@@ -19,6 +19,7 @@ const formats = {
 };
 const slides = [];
 const list = document.querySelector("#slides");
+const masthead = document.querySelector("#masthead");
 const template = document.querySelector("#slide-row");
 const picker = document.querySelector("#files");
 const browse = document.querySelector("#browse");
@@ -120,8 +121,16 @@ function updateArchive() {
   }
 }
 
+// The masthead is the page's billboard while the list is empty and shrinks to
+// a bar once a talk is added (see styles.css). It only animates once the saved
+// list has been brought back, so a refresh doesn't replay the move.
+function settleMasthead() {
+  requestAnimationFrame(() => masthead.classList.add("animate"));
+}
+
 function updateList() {
   list.hidden = slides.length === 0;
+  masthead.classList.toggle("hero", slides.length === 0);
   deckCaveat.hidden = !slides.some(slide => needsCaveat(slide.extension));
   linkCaveat.hidden = !slides.some(slide => !slide.file);
   googleCaveat.hidden = !slides.some(slide => slide.file && slide.link?.googleId);
@@ -1237,13 +1246,14 @@ function restoreSession() {
       }
     }
     saving = "idle";
+    settleMasthead();
     // Saves what this tab holds now, including anything dropped in meanwhile.
     scheduleSave();
   });
 }
 
 function startSaving() {
-  if (!("indexedDB" in window)) return;
+  if (!("indexedDB" in window)) return settleMasthead();
   if (!navigator.locks) {
     restoreSession();
     return;
@@ -1253,6 +1263,7 @@ function startSaving() {
       notice.textContent = "This list is open in another tab, which keeps it saved. "
         + "Changes made here aren’t kept after this tab closes.";
       notice.hidden = false;
+      settleMasthead();
       return undefined;
     }
     restoreSession();

@@ -13,7 +13,7 @@ const docs = fileURLToPath(new URL("../docs/", import.meta.url));
 
 // Not needed to run the tool: the link-preview image and home-screen icon are
 // for other apps, and the list and the worker are fetched fresh anyway.
-const skip = new Set([".nojekyll", "social-card.png", "apple-touch-icon.png", "offline-files.json", "sw.js"]);
+const skip = new Set([".nojekyll", "CNAME", "social-card.png", "apple-touch-icon.png", "offline-files.json", "sw.js"]);
 
 export async function offlineFiles() {
   const entries = await readdir(docs, { recursive: true, withFileTypes: true });

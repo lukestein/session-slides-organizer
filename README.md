@@ -1,6 +1,6 @@
-# Session Slides Organizer
+# Slide Organizer
 
-**Hosted at <https://lukestein.com/session-slides-organizer/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
+**Hosted at <https://slideorg.org/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
 
 https://github.com/user-attachments/assets/21a3cc7f-5a1a-4f88-949c-9c13e6312e4a
 
@@ -131,6 +131,6 @@ Tip for a shared room computer: in PairDrop, set that browser's display name to 
 
 ## License and credits
 
-Session Slides Organizer is free to use and open source under the [MIT license](LICENSE). It is built on [PDF.js](https://mozilla.github.io/pdf.js/) (Apache 2.0) for PDFs, [web-ppt](https://github.com/unStone/web-ppt) (MIT) for PowerPoint and [fflate](https://github.com/101arrowz/fflate) (MIT) for ZIPs, and set in [Instrument Sans](https://github.com/Instrument/instrument-sans) (SIL Open Font License). Each one's license is bundled beside it in [`docs/vendor/`](docs/vendor/).
+Slide Organizer is free to use and open source under the [MIT license](LICENSE). It is built on [PDF.js](https://mozilla.github.io/pdf.js/) (Apache 2.0) for PDFs, [web-ppt](https://github.com/unStone/web-ppt) (MIT) for PowerPoint and [fflate](https://github.com/101arrowz/fflate) (MIT) for ZIPs, and set in [Instrument Sans](https://github.com/Instrument/instrument-sans) (SIL Open Font License). Each one's license is bundled beside it in [`docs/vendor/`](docs/vendor/).
 
 Working on the code, by hand or with a coding agent? See [DEVELOPING.md](DEVELOPING.md).
