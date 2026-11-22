@@ -330,7 +330,10 @@ a crash or a closed tab on the room computer does not lose it. Nothing leaves th
   appear inside the dialog and allow retry. Clear list is disabled while the ZIP is prepared.
 - **Tests.** `tests/session-saving.test.mjs` runs the part of `app.mjs` from
   `let saving = "off";` to the end without a page, so code placed there must not touch the DOM
-  directly; put UI wiring above that line, as the Clear list dialog is.
+  directly; put UI wiring above that line, as the Clear list dialog is. Likewise
+  `tests/session-download.test.mjs` runs `downloadSessionZip()` up to the `// When this copy`
+  comment, and the Clear list dialog code from its `// Clear list asks first` comment to
+  `// Saving the list in this browser.`, so keep those comments and that order when editing.
 - **Shared computers.** The saved list stays until someone clears it, so the next person at a
   podium sees the last session's list. The README tells chairs to clear it when done.
 
