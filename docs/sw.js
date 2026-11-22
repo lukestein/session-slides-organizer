@@ -48,17 +48,25 @@ async function refreshCopy() {
   const files = (await listing.json()).map(path => new URL(path, scope).href);
   // One at a time would be slow and all at once floods a weak connection.
   const queue = [...files];
+  let complete = true;
   const worker = async () => {
     for (let url = queue.shift(); url; url = queue.shift()) {
       try {
         const response = await fetch(url, { cache: "no-cache" });
         if (keepable(response)) await cache.put(url, response);
+        else complete = false;
       } catch {
-        // Tried again at the next refresh.
+        complete = false;
       }
     }
   };
   await Promise.all(Array.from({ length: 6 }, worker));
+  if (!complete) {
+    // Even a recent stamp may belong to an older worker's file list.
+    // Retry on the next navigation rather than waiting another 12 hours.
+    await cache.delete(stampKey);
+    return;
+  }
   // Forget files the site no longer has.
   const wanted = new Set(files);
   for (const request of await cache.keys()) {

@@ -1105,6 +1105,7 @@ window.addEventListener("pageshow", event => {
 let saving = "off"; // "off" until restored, then "idle", "pending" or "failed"
 let saveTimer;
 let saveRunning = Promise.resolve();
+let saveRevision = 0;
 let warnedOfFailure = false;
 
 function newId() {
@@ -1126,6 +1127,7 @@ function snapshot() {
 function scheduleSave() {
   if (saving === "off") return;
   saving = "pending";
+  saveRevision++;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveNow, 400);
 }
@@ -1134,10 +1136,12 @@ function saveNow() {
   clearTimeout(saveTimer);
   if (saving !== "pending") return saveRunning;
   const state = snapshot();
+  const revision = saveRevision;
   saveRunning = saveRunning.then(async () => {
     const ok = await saveSession(state);
-    // A change made while this was writing has scheduled its own save.
-    if (saving === "pending" && saveTimer) return;
+    // A newer change may still be waiting on its timer, or already queued
+    // behind this write. Neither is safely stored by this completion.
+    if (revision !== saveRevision) return;
     saving = ok ? "idle" : "failed";
     if (ok) warnedOfFailure = false;
     else if (!warnedOfFailure && slides.length) {
@@ -1226,7 +1230,7 @@ clearButton.addEventListener("click", async () => {
 // site?" question is only asked when the latest change is not saved yet, or
 // could not be.
 window.addEventListener("beforeunload", event => {
-  if (!slides.length || saving === "idle") return;
+  if (saving === "idle" || (saving === "off" && !slides.length)) return;
   if (saving === "pending") saveNow();
   event.preventDefault();
   event.returnValue = "";
