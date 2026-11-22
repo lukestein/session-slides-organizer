@@ -1236,3 +1236,11 @@ document.addEventListener("visibilitychange", () => {
 });
 
 startSaving();
+
+// Keeps a copy of the site so the page opens offline; see sw.js. Registered
+// after the page has loaded, so filling the copy never slows the first visit.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }, { once: true });
+}

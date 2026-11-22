@@ -107,6 +107,8 @@ If you import a session ZIP with a saved copy for a link-only row, the row keeps
 
 **Your list stays on this computer.** There is no account and nothing is saved on a server. Apart from PairDrop, the page contacts only the sites you link to: Google for the preview and name of a Google Slides link when you add one and for its PDF when you click **Get PDF**, and any other link's own site once, when you add it, to see whether it is a slide file. **Refresh** asks again only when clicked. None of these requests carries your cookies or the page's address. The list, files included, is kept in this browser's own storage on this computer, so a refresh, a crash or a closed tab does not lose it. Open the page again and it comes back. **Clear list**, under the session ZIP row, removes it. On a shared room computer, clear the list when your session is done, and download the session ZIP if you want to keep the running order elsewhere. If the page is open in two tabs, only the first keeps the list saved, and the second says so.
 
+**It works offline.** After the page has been opened once with internet, this browser keeps a copy of it, so it opens again with no connection: handy when the room's Wi-Fi is down or wants a sign-in. Your saved list comes back too, and PDFs and PowerPoint decks present as usual. Only online decks and fetching from links need the internet. When setting up a room computer, open the page once while it is online. Online, updates arrive just as they would without it.
+
 **What can be opened.**
 
 | Format | Preview, size and count | Present in the browser | Download and ZIP |
