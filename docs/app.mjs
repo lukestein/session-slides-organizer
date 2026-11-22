@@ -1046,12 +1046,15 @@ zipName.addEventListener("keydown", event => {
   }
 });
 
-exportButton.addEventListener("click", async () => {
+async function downloadSessionZip(feedback = error) {
+  if (exportButton.disabled) return false;
   const files = sessionFiles();
   const filename = `${archiveStem()}.zip`;
   exportButton.disabled = true;
+  clearButton.disabled = true;
   announce("Preparing session ZIP.");
   error.hidden = true;
+  feedback.hidden = true;
   try {
     const url = URL.createObjectURL(await buildSessionZip(archiveStem(), files));
     const link = document.createElement("a");
@@ -1062,13 +1065,18 @@ exportButton.addEventListener("click", async () => {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
     announce("Session ZIP ready.");
+    return true;
   } catch {
-    error.textContent = "Couldn’t create the session ZIP. Try again or download the slides individually.";
-    error.hidden = false;
+    feedback.textContent = "Couldn’t create the session ZIP. Try again or download the slides individually.";
+    feedback.hidden = false;
+    return false;
   } finally {
     exportButton.disabled = false;
+    clearButton.disabled = false;
   }
-});
+}
+
+exportButton.addEventListener("click", () => downloadSessionZip());
 
 // When this copy of the page was published. There is no build step to stamp a
 // version into, but GitHub Pages sets Last-Modified on every deploy and the
@@ -1100,6 +1108,8 @@ window.addEventListener("pageshow", event => {
 // Clear list asks first, in a dialog of its own rather than confirm(), so it
 // can offer the ZIP download right there and OK cannot be read as "download".
 const clearDownload = document.querySelector("#clear-download");
+const clearConfirm = document.querySelector("#clear-confirm");
+const clearError = document.querySelector("#clear-error");
 clearButton.addEventListener("click", () => {
   if (!slides.length) return;
   document.querySelector("#clear-message").textContent = slides.length === 1
@@ -1107,15 +1117,23 @@ clearButton.addEventListener("click", () => {
     : `This removes all ${slides.length} presentations from this page and from this browser’s saved list. Files elsewhere on your computer aren’t touched.`;
   clearDownload.disabled = false;
   clearDownload.textContent = "Download ZIP";
+  clearError.hidden = true;
   clearDialog.showModal();
 });
 document.querySelector("#clear-cancel").addEventListener("click", () => clearDialog.close());
-clearDownload.addEventListener("click", () => {
-  exportButton.click();
+clearDownload.addEventListener("click", async () => {
   clearDownload.disabled = true;
-  clearDownload.textContent = "ZIP downloaded";
+  clearConfirm.disabled = true;
+  clearDownload.textContent = "Preparing ZIP…";
+  try {
+    const downloaded = await downloadSessionZip(clearError);
+    clearDownload.textContent = downloaded ? "Download started" : "Download ZIP";
+    clearDownload.disabled = downloaded;
+  } finally {
+    clearConfirm.disabled = false;
+  }
 });
-document.querySelector("#clear-confirm").addEventListener("click", async () => {
+clearConfirm.addEventListener("click", async () => {
   clearDialog.close();
   await queueListUpdate(async () => {
     for (const slide of slides.splice(0)) {

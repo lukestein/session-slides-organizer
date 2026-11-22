@@ -326,6 +326,8 @@ a crash or a closed tab on the room computer does not lose it. Nothing leaves th
   does not hold the lock.
 - **Clear list** empties the list and the store. It asks first in its own `<dialog>` (Cancel,
   Download ZIP, Clear list) rather than `confirm()`, whose OK could be read as "download".
+  The dialog waits for ZIP preparation before reporting that the download started; failures
+  appear inside the dialog and allow retry. Clear list is disabled while the ZIP is prepared.
 - **Tests.** `tests/session-saving.test.mjs` runs the part of `app.mjs` from
   `let saving = "off";` to the end without a page, so code placed there must not touch the DOM
   directly; put UI wiring above that line, as the Clear list dialog is.
