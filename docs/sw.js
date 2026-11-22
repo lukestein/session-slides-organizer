@@ -24,6 +24,10 @@ const patience = 4000;
 // such as the PowerPoint renderer on a day with only PDFs.
 const refreshEvery = 12 * 60 * 60 * 1000;
 const stampKey = `${scope}__refreshed`;
+// After a fill that missed some files, how long to wait before trying again:
+// soon enough that a dropped download is back well before the session, not so
+// soon that every page load on a flaky network re-checks the whole site.
+const retryAfter = 10 * 60 * 1000;
 
 // Query strings never change the file: the presenter's carries the deck's
 // blob address, which differs every time.
@@ -62,9 +66,10 @@ async function refreshCopy() {
   };
   await Promise.all(Array.from({ length: 6 }, worker));
   if (!complete) {
-    // Even a recent stamp may belong to an older worker's file list.
-    // Retry on the next navigation rather than waiting another 12 hours.
-    await cache.delete(stampKey);
+    // Back-date the stamp so the next try comes after retryAfter rather than
+    // a whole refreshEvery. This also replaces a recent stamp written for an
+    // older worker's file list.
+    await cache.put(stampKey, new Response(String(Date.now() - refreshEvery + retryAfter)));
     return;
   }
   // Forget files the site no longer has.

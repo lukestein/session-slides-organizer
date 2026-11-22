@@ -341,7 +341,8 @@ never pass through it.
   online visitors are exactly as up to date as before, with no "reload to update" step.
 - **Filling the copy.** On install, and on a navigation when the last check is more than 12 hours
   old, it fetches every file in `docs/offline-files.json` (about 7 MB, six at a time,
-  revalidating with the server) and drops anything the list no longer names. Files used on a
+  revalidating with the server) and drops anything the list no longer names. If any file fails,
+  nothing is dropped and the next try comes 10 minutes later instead of 12 hours. Files used on a
   visit are refreshed anyway; this catches the rest, such as the PowerPoint renderer on a day
   with only PDFs, so an offline visit never mixes an old renderer with a new page.
 - **Query strings are ignored** in the stored copy, since the presenter's URL carries a
