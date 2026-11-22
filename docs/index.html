@@ -84,14 +84,25 @@
       <button type="button" id="clear-list" class="text-button" hidden>Clear list</button>
     </div>
 
+    <dialog class="confirm-dialog" id="clear-dialog" aria-labelledby="clear-heading" aria-describedby="clear-message">
+      <h2 id="clear-heading">Clear the list?</h2>
+      <p id="clear-message"></p>
+      <p>To keep a copy, download the session ZIP first. You can drop it back in later.</p>
+      <div class="dialog-actions">
+        <button type="button" class="button" id="clear-cancel">Cancel</button>
+        <button type="button" class="button" id="clear-download">Download ZIP</button>
+        <button type="button" class="button danger" id="clear-confirm">Clear list</button>
+      </div>
+    </dialog>
+
     <ol class="how-it-works" aria-label="How it works">
-      <li><b>Add each talk.</b> Drop in decks from a USB stick, email or Dropbox, or paste a link to
-        Google Slides or another online deck.</li>
+      <li><b>Add each talk.</b> Drop in slides from a USB stick, email, Dropbox and so on, or paste a
+        link to an online presentation, such as Google Slides.</li>
       <li><b>Put them in order.</b> Drag rows into speaking order and give each a clean title.</li>
-      <li><b>Present.</b> <em>Open in browser</em> shows the deck full screen, one slide at a time,
-        with clicker support. Press <kbd>?</kbd> there for shortcuts.</li>
-      <li><b>Keep the session.</b> Download a ZIP of the decks, numbered in order, and drop it back
-        in later to pick up where you left off.</li>
+      <li><b>Present.</b> <em>Open in browser</em> shows each presentation full screen, one slide at a
+        time, with clicker support. Press <kbd>?</kbd> there for shortcuts.</li>
+      <li><b>Keep the session.</b> Download a ZIP of all the presentation files, numbered in order.
+        Use it on any computer, or drop it back in here to pick up where you left off.</li>
     </ol>
 
     <p id="error" class="error" role="alert" hidden></p>
@@ -99,8 +110,9 @@
 
     <p id="status" class="sr-only" role="status"></p>
 
-    <p class="caveat" id="deck-caveat" hidden><b aria-hidden="true">*</b> Decks open in a built-in
-      viewer and may not match PowerPoint exactly. Download one to present from PowerPoint itself.</p>
+    <p class="caveat" id="deck-caveat" hidden><b aria-hidden="true">*</b> PowerPoint slides open in a
+      built-in viewer with fewer features, and may not match PowerPoint exactly. To present in
+      PowerPoint on this computer, click <b>Download</b> and open the file.</p>
     <p class="caveat" id="google-caveat" hidden><b aria-hidden="true">†</b> Saved from Google Slides as
       a PDF: each slide appears in its finished state, without animations or transitions, and video
       and audio don’t play.</p>

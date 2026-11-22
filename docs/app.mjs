@@ -37,6 +37,7 @@ const googleCaveat = document.querySelector("#google-caveat");
 const linkField = document.querySelector("#link");
 const addLinkButton = document.querySelector("#add-link");
 const clearButton = document.querySelector("#clear-list");
+const clearDialog = document.querySelector("#clear-dialog");
 const megabytes = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const rowAnimations = new WeakMap();
@@ -315,8 +316,8 @@ function googleRefusal(slide, what) {
     textContent: "Download the PDF from Google",
   });
   message.append(
-    `Google didn’t send ${what} of ${slide.named ? `“${slide.friendlyName}”` : "this deck"}. `
-      + "It only does for a deck shared with "
+    `Google didn’t send ${what} of ${slide.named ? `“${slide.friendlyName}”` : "this presentation"}. `
+      + "It only does for a presentation shared with "
       + "anyone who has the link, and it needs the internet. ",
     fallback,
     " instead, signed in to Google, then drop the file here.",
@@ -1096,6 +1097,45 @@ window.addEventListener("pageshow", event => {
   });
 });
 
+// Clear list asks first, in a dialog of its own rather than confirm(), so it
+// can offer the ZIP download right there and OK cannot be read as "download".
+const clearDownload = document.querySelector("#clear-download");
+clearButton.addEventListener("click", () => {
+  if (!slides.length) return;
+  document.querySelector("#clear-message").textContent = slides.length === 1
+    ? "This removes the presentation from this page and from this browser’s saved list. Files elsewhere on your computer aren’t touched."
+    : `This removes all ${slides.length} presentations from this page and from this browser’s saved list. Files elsewhere on your computer aren’t touched.`;
+  clearDownload.disabled = false;
+  clearDownload.textContent = "Download ZIP";
+  clearDialog.showModal();
+});
+document.querySelector("#clear-cancel").addEventListener("click", () => clearDialog.close());
+clearDownload.addEventListener("click", () => {
+  exportButton.click();
+  clearDownload.disabled = true;
+  clearDownload.textContent = "ZIP downloaded";
+});
+document.querySelector("#clear-confirm").addEventListener("click", async () => {
+  clearDialog.close();
+  await queueListUpdate(async () => {
+    for (const slide of slides.splice(0)) {
+      slide.row.remove();
+      releaseUrls(slide);
+    }
+    zipName.value = zipName.defaultValue;
+    exportButton.setAttribute("aria-label", `Download ${archiveStem()}.zip`);
+    error.hidden = true;
+    notice.hidden = true;
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    await saveRunning;
+    if (saving !== "off") saving = (await clearSession()) ? "idle" : "failed";
+    updateList();
+  });
+  browse.focus();
+  announce("List cleared.");
+});
+
 // Saving the list in this browser. See session-store.mjs.
 //
 // Only one organizer tab saves: a second tab would otherwise overwrite the
@@ -1202,29 +1242,6 @@ function startSaving() {
     return new Promise(() => {});
   });
 }
-
-clearButton.addEventListener("click", async () => {
-  if (!slides.length) return;
-  if (!confirm(`Remove all ${plural(slides.length, "talk")} from this list? `
-    + "Download the session ZIP first if you want to keep them.")) return;
-  await queueListUpdate(async () => {
-    for (const slide of slides.splice(0)) {
-      slide.row.remove();
-      releaseUrls(slide);
-    }
-    zipName.value = zipName.defaultValue;
-    exportButton.setAttribute("aria-label", `Download ${archiveStem()}.zip`);
-    error.hidden = true;
-    notice.hidden = true;
-    clearTimeout(saveTimer);
-    saveTimer = undefined;
-    await saveRunning;
-    if (saving !== "off") saving = (await clearSession()) ? "idle" : "failed";
-    updateList();
-  });
-  browse.focus();
-  announce("List cleared.");
-});
 
 // The list survives the tab closing once it is saved, so the browser's "Leave
 // site?" question is only asked when the latest change is not saved yet, or

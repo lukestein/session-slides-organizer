@@ -195,6 +195,23 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 }
 .text-button:hover { color: #9d2544; }
 
+.confirm-dialog {
+  width: min(100% - 2rem, 30rem);
+  padding: 1.4rem 1.5rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1.2rem 3rem #12362533;
+}
+.confirm-dialog::backdrop { background: #1c302866; }
+.confirm-dialog h2 { font-size: 1.15rem; letter-spacing: -.015em; }
+.confirm-dialog p { margin-top: .6rem; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; margin-top: 1.25rem; }
+.dialog-actions .button:disabled { cursor: default; opacity: .65; }
+.button.danger { background: #9d2544; border-color: #9d2544; color: #fff; }
+.button.danger:hover { background: #7f1d37; }
+
 /* A word on what the tool does, shown only while the list is empty. */
 .how-it-works {
   display: grid;

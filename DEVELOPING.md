@@ -324,7 +324,11 @@ a crash or a closed tab on the room computer does not lose it. Nothing leaves th
 - **Leaving the page.** The browser's "Leave site?" prompt appears only when the list holds
   something not yet saved: a save still pending, a save that failed (storage full), or a tab that
   does not hold the lock.
-- **Clear list** empties the list and the store, after a `confirm()`.
+- **Clear list** empties the list and the store. It asks first in its own `<dialog>` (Cancel,
+  Download ZIP, Clear list) rather than `confirm()`, whose OK could be read as "download".
+- **Tests.** `tests/session-saving.test.mjs` runs the part of `app.mjs` from
+  `let saving = "off";` to the end without a page, so code placed there must not touch the DOM
+  directly; put UI wiring above that line, as the Clear list dialog is.
 - **Shared computers.** The saved list stays until someone clears it, so the next person at a
   podium sees the last session's list. The README tells chairs to clear it when done.
 
@@ -432,7 +436,7 @@ shows a real Google Slides deck, so look at them before committing.
   which would go stale as soon as the running order changed. So the button needs a sensible
   disabled state for when that tab has gone.
 - [x] Link rows for decks that live at a URL: Google Slides, PowerPoint for the web, Canva and
-  the rest. See **Online decks** in the README. Google Slides decks can also be fetched as a PDF.
+  the rest. See **Online presentations** in the README. Google Slides presentations can also be fetched as a PDF.
 - [ ] Try **Get PDF** on the classroom network, and on a deck shared only within a school's
   Google domain rather than with anyone who has the link, to see how the refusal reads.
 - [x] Keep the list across a refresh or a closed tab. See **Saving the list in the browser** above.
