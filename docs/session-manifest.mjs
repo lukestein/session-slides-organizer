@@ -6,7 +6,7 @@ export const manifestName = "session.md";
 // Printed in the manifest so whoever opens the ZIP can find the tool. It is
 // the published site rather than wherever this copy happens to be running,
 // since the file is made to be passed on.
-export const siteUrl = "https://lukestein.com/session-slides-organizer/";
+export const siteUrl = "https://slideorg.org/";
 
 // The export always writes `session.md`, but the file is meant to be handled,
 // and renaming it is the obvious thing to do with a file named after nothing
@@ -46,8 +46,8 @@ export function buildManifest(sessionName, entries) {
   const lines = [
     `# ${sessionName}`,
     "",
-    "Import these files to the Session Slides Organizer to restore this running",
-    "order. Drag in the whole ZIP, or the files it holds along with this one.",
+    "Import these files to Slide Organizer to restore this running order. Drag",
+    "in the whole ZIP, or the files it holds along with this one.",
     "",
     siteUrl,
     "",

@@ -17,7 +17,7 @@ function harness() {
   let nextTimer = 0;
   const context = vm.createContext({
     slides, zipName: { value: "Session" }, notice: {}, navigator: {},
-    clearButton: { addEventListener() {} },
+    clearButton: { addEventListener() {} }, settleMasthead() {},
     window: { addEventListener: (name, fn) => { handlers[name] = fn; } },
     document: {
       visibilityState: "hidden",
