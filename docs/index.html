@@ -4,24 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta name="description" content="Arrange conference slides and open each talk from one list.">
+  <meta name="description" content="Put every speaker’s slides in one list, in speaking order, and present each talk from the browser. Free, with nothing to install, and nothing uploaded.">
+  <meta name="theme-color" content="#006644">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; connect-src 'self' blob: https:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Session Slides Organizer</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <!-- Link previews in chat apps and email. Previews need absolute addresses,
+       so these change with the site's address; see DEVELOPING.md. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Session Slides Organizer">
+  <meta property="og:title" content="Session Slides Organizer">
+  <meta property="og:description" content="Every speaker’s slides in one list, in speaking order, ready to present from the browser. Nothing to install, nothing uploaded.">
+  <meta property="og:url" content="https://lukestein.com/session-slides-organizer/">
+  <meta property="og:image" content="https://lukestein.com/session-slides-organizer/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Session Slides Organizer: a numbered list of talks, each with a slide preview and an Open in browser button.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
   <header class="masthead">
     <div class="shell masthead-inner">
-      <span class="wordmark-icon" aria-hidden="true">▤</span>
+      <svg class="wordmark-icon" aria-hidden="true" viewBox="0 0 32 32" width="36" height="36">
+        <rect width="32" height="32" rx="7" fill="#fff" fill-opacity=".13"/>
+        <rect x="11" y="5.5" width="16" height="11.5" rx="2" fill="#5fa47f"/>
+        <rect x="8.5" y="9.25" width="16" height="11.5" rx="2" fill="#a9d3b9"/>
+        <rect x="6" y="13" width="16" height="11.5" rx="2" fill="#fff"/>
+        <path d="M14.1 15.3h1.9v7.3h-1.9v-5.2l-1.7 1v-1.8z" fill="#006644"/>
+      </svg>
       <h1>Session Slides Organizer</h1>
     </div>
   </header>
 
   <main class="shell">
     <div class="intro">
-      <p>Arrange your slides and open each one when it’s time to present.</p>
-      <p>Files stay on this computer. Keep this tab open to maintain your list.</p>
+      <p>Put every speaker’s slides in one list, in speaking order, and open each talk when it’s time.</p>
+      <p>Files stay on this computer: nothing is uploaded. The list is kept in this browser until you clear it.</p>
     </div>
 
     <ol id="slides" aria-label="Presentation order" role="list" hidden></ol>
@@ -37,7 +59,7 @@
           <button type="button" class="button" id="add-link">Add link</button>
         </div>
       </div>
-      <div class="receive-actions">
+      <div class="receive-actions" aria-label="Receiving slides with PairDrop" role="group">
         <a href="https://pairdrop.net/?init=public_room" target="_blank" rel="noopener noreferrer">Receive with PairDrop</a>
         <button type="button" id="import-downloads">Import received files</button>
       </div>
@@ -58,13 +80,40 @@
         <button type="button" class="button download" id="export" aria-label="Download session-slides.zip">Download</button>
       </div>
     </div>
+    <div class="list-tools" id="list-tools">
+      <button type="button" id="clear-list" class="text-button" hidden>Clear list</button>
+    </div>
+
+    <dialog class="confirm-dialog" id="clear-dialog" aria-labelledby="clear-heading" aria-describedby="clear-message">
+      <h2 id="clear-heading">Clear the list?</h2>
+      <p id="clear-message"></p>
+      <p>To keep a copy, download the session ZIP first. You can drop it back in later.</p>
+      <p id="clear-error" class="error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" class="button" id="clear-cancel">Cancel</button>
+        <button type="button" class="button" id="clear-download">Download ZIP</button>
+        <button type="button" class="button danger" id="clear-confirm">Clear list</button>
+      </div>
+    </dialog>
+
+    <ol class="how-it-works" aria-label="How it works">
+      <li><b>Add each talk.</b> Drop in slides from a USB stick, email, Dropbox and so on, or paste a
+        link to an online presentation, such as Google Slides.</li>
+      <li><b>Put them in order.</b> Drag rows into speaking order and give each a clean title.</li>
+      <li><b>Present.</b> <em>Open in browser</em> shows each presentation full screen, one slide at a
+        time, with clicker support. Press <kbd>?</kbd> there for shortcuts.</li>
+      <li><b>Keep the session.</b> Download a ZIP of all the presentation files, numbered in order.
+        Use it on any computer, or drop it back in here to pick up where you left off.</li>
+    </ol>
+
     <p id="error" class="error" role="alert" hidden></p>
     <p id="notice" class="notice" role="status" hidden></p>
 
     <p id="status" class="sr-only" role="status"></p>
 
-    <p class="caveat" id="deck-caveat" hidden><b aria-hidden="true">*</b> Decks open in a built-in
-      viewer and may not match PowerPoint exactly. Download one to present from PowerPoint itself.</p>
+    <p class="caveat" id="deck-caveat" hidden><b aria-hidden="true">*</b> PowerPoint slides open in a
+      built-in viewer with fewer features, and may not match PowerPoint exactly. To present in
+      PowerPoint on this computer, click <b>Download</b> and open the file.</p>
     <p class="caveat" id="google-caveat" hidden><b aria-hidden="true">†</b> Saved from Google Slides as
       a PDF: each slide appears in its finished state, without animations or transitions, and video
       and audio don’t play.</p>
@@ -76,7 +125,10 @@
   <footer class="shell">Made with love and AI by <a href="https://lukestein.com" target="_blank"
     rel="noopener">Luke Stein</a>.<span id="build-stamp" hidden> Updated <time id="build-date"></time>.</span>
     <a href="https://github.com/lukestein/session-slides-organizer" target="_blank"
-      rel="noopener">Source code</a>.</footer>
+      rel="noopener">Source code</a>, under the MIT license. Built on
+    <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener">PDF.js</a>,
+    <a href="https://github.com/unStone/web-ppt" target="_blank" rel="noopener">web-ppt</a> and
+    <a href="https://github.com/101arrowz/fflate" target="_blank" rel="noopener">fflate</a>.</footer>
 
   <template id="slide-row">
     <li class="slide">

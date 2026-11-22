@@ -293,7 +293,7 @@ async function start() {
   }
 
   if (!source?.startsWith("blob:")) {
-    message("Open this deck from the organizer tab.");
+    message("Open this presentation from the organizer tab.");
     return;
   }
 
@@ -303,7 +303,7 @@ async function start() {
     // row, cannot pull it out from under a talk in progress.
     data = await (await fetch(source)).arrayBuffer();
   } catch {
-    message("This deck is no longer available. Open it again from the organizer tab.");
+    message("This presentation is no longer available. Open it again from the organizer tab.");
     return;
   }
 
@@ -332,7 +332,7 @@ async function start() {
   } catch {
     message(extension === "pdf"
       ? "This PDF couldn\u2019t be opened here. Download it to open in another viewer."
-      : "This deck couldn\u2019t be opened here. Download it to present in PowerPoint.");
+      : "This presentation couldn\u2019t be opened here. Download it to present in PowerPoint.");
     return;
   }
   // Outside the catch: a slip here is not the file failing to open.
