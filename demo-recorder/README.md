@@ -48,11 +48,57 @@ node demo.mjs --beats=drop1,drop3,reorder   # just these beats
 
 `node screenshots.mjs` takes the still screenshots the top-level README embeds (the list, the
 presenters, the slide picker, the shortcut guide) from the same `serve/` copy, into `shots-readme/`.
-Copy the ones worth keeping into `../media/`.
+Copy the ones worth keeping into `../media/`. The list shot includes the same
+Google Slides PDF and five edited titles as the social demo, so this capture
+needs network access for the shared Google deck.
 
 `sync.sh` builds `serve/` from a git ref rather than the working tree, so a take
 always matches something that shipped — `REF=main` by default, and `SLIDES=...`
 overrides where the decks come from (`../../sample slides`).
+
+## Branded social introduction
+
+The standalone introduction for a first-time audience is `../media/social-demo.mp4`:
+47 seconds, 1920×1080, H.264 at 30 fps, intentionally silent with readable feature
+captions. The companion `social-cover.png` is the upload thumbnail, and
+`brand-animation.mp4` is a six-second loop of the three slides becoming the stack
+and opening out again. All use the site's Instrument Sans and green palette.
+
+Rebuild from the repository root:
+
+```sh
+./demo-recorder/sync.sh
+HEADLESS=1 node demo-recorder/demo.mjs --video --social
+HEADLESS=1 node demo-recorder/social.mjs
+```
+
+`--social` shows the Google Slides link and PDF conversion together before
+ordering the talks, and omits the shortcut dialog while retaining visible clicks
+through PDF links. The four sample decks and actual app interactions are the same as the original take. `take.json`
+records beat timecodes after navigation waits have been cut, so the edit follows
+the new recording rather than hard-coded source timestamps. The old recorder
+without `--social` still produces the original walkthrough.
+
+The edit starts with a complete, readable cover on frame zero: “Every talk.
+One place.”, a description, and the domain. The three slides become the stack
+within the three-second opening. Five captioned chapters follow (5 / 5 / 8 /
+15 / 8 seconds): gathering files, Google Slides, ordering, presenting, and saving.
+The three-second closing card contains only the icon, address, and
+“Free · Open source · Private.” Captions sit above the complete browser frame.
+`social.mjs` draws the animation on a canvas with deterministic frame times,
+using the site's tile-to-stack geometry. It needs no npm packages. Adjust its
+chapter copy and durations there; rebuild to apply them. Intermediate frames,
+chapter cards, clips and the JSON edit report live in ignored `social-build/`.
+Google image loading is cut until the preview has actually decoded; PDF loading
+and settling are cut too, leaving only a brief pause after each result. All five
+titles are edited. In the PDF presenter, the pointer visibly glides to the
+regression-table link and back, with a brief ring marking each click.
+For an inline player in the top-level README, upload `media/social-demo.mp4` by
+dragging it into a GitHub comment box, then copy the generated `user-attachments`
+URL to its own line in the README. The comment need not be posted. Each new take
+needs a new upload and URL. The clickable `media/social-cover.png` preview linking
+to `media/social-demo.mp4?raw=true` is a fallback, not an inline player.
+The original `media/demo.mp4` remains a separate output.
 
 ## The storyboard
 
@@ -64,7 +110,7 @@ One beat per block in `demo.mjs`, runnable alone with `--beats=`:
 | `drop3` | three more arrive as a stack with a count badge — PDF, PowerPoint and Keynote together |
 | `link` | a Google Slides address pasted into the field under the drop zone, then **Add link**. The preview and the deck's own name arrive from Google; the wait for them is cut |
 | `reorder` | the PowerPoint is dragged from third to second, so the list reads paper, discussion, paper, discussion |
-| `rename` | one click into the first title, then **Tab** along the row — the app moves focus and selects the next title itself — retitling the four files to Paper A / Discussion A / Paper B / Discussion B, original filenames still visible underneath |
+| `rename` | one click into the first title, then **Tab** along the row — the app moves focus and selects the next title itself — retitling all five talks to Paper A / Discussion A / Paper B / Discussion B / Closing talk, original filenames still visible underneath |
 | `pdf` | **Open in browser** on a PDF. The **?** shortcut card over the cover slide, then **G** and a click straight to slide 5, its link out to the regression table on 15 and the link back. The pointer is parked against the right edge and hidden while slides are up — visible only for the clicks |
 | `pptx` | the same presenter on a PowerPoint, briefly: one click forward |
 | `getpdf` | **Get PDF** on the Google row, which becomes an ordinary PDF row with its † and a link back to Google Slides; the download is cut |

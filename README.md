@@ -2,7 +2,7 @@
 
 **Hosted at <https://slideorg.org/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
 
-https://github.com/user-attachments/assets/21a3cc7f-5a1a-4f88-949c-9c13e6312e4a
+https://github.com/user-attachments/assets/15d178e3-83ec-405c-8566-4fd153f58c40
 
 A small web tool for whoever runs a conference session, a seminar, or a panel. When several speakers share one room computer, the usual scramble is a pile of files in Downloads, a different app for each format, and a laptop-swap between every talk. Here you put all the presentations in one list, put them in speaking order, and open each one at its turn. PDFs, PowerPoint and Keynote files all go in the same list.
 
@@ -23,7 +23,7 @@ For a presentation that lives online, paste its link into the field under **Drop
 
 ### 2. Name and order the talks
 
-![The organizer with four talks listed in order, each with a thumbnail, an editable title, the original filename, and Open in browser and Download buttons, above a session ZIP row](media/list.png)
+![The organizer with five talks listed in order, including a PDF from Google Slides, each with a thumbnail, an editable title, the original filename, and Open in browser and Download buttons, above a session ZIP row](media/list.png)
 
 - **Rename** a talk by typing in its title field. Press **Tab** to move to the next title.
 - **Reorder** by dragging a row by its handle. On a touch screen, use the handle too. With a keyboard, focus the handle and press the up or down arrow key.

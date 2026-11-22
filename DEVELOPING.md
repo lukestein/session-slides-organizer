@@ -438,12 +438,24 @@ cd demo-recorder
 node screenshots.mjs      # writes shots-readme/; copy the keepers into ../media/
 ```
 
-The video (`media/demo.mp4`) shows the build with online decks: it pastes a Google Slides link,
-fetches its PDF, and drops the session ZIP back into a fresh tab. The README plays a copy uploaded
-to GitHub, so after a retake, drag the new file into any GitHub comment box and swap the
-`user-attachments` URL at the top of the README. Retake it with `node demo.mjs --video`. Both the
-video and the screenshots show real slide content from the sample decks, and the video also
-shows a real Google Slides deck, so look at them before committing.
+The original walkthrough (`media/demo.mp4`) shows online decks: it pastes a Google Slides
+link, fetches its PDF, and drops the session ZIP back into a fresh tab. Retake it with
+`node demo.mjs --video`. The README introduces the site with the branded social video
+below. For an inline GitHub player, drag `media/social-demo.mp4` into a GitHub comment
+box, wait for the upload, then paste the generated `user-attachments` URL on its own
+line in the README. The upload happens before the comment is submitted; posting the
+comment is unnecessary. A linked `media/social-cover.png` is a fallback that opens
+the video; it does not embed a player. Retaking the local MP4 does not update an
+uploaded attachment: upload each new take and replace its URL.
+Both the video and the screenshots show real slide content from the sample decks, and
+the video also shows a real Google Slides deck, so look at them before committing.
+
+The branded social introduction is `media/social-demo.mp4` (47 seconds), with
+`media/social-cover.png` and the standalone six-second `media/brand-animation.mp4`.
+To rebuild it, sync the recorder, record with `node demo.mjs --video --social`,
+then run `node social.mjs`, both from `demo-recorder/` (`HEADLESS=1` is supported).
+See the recorder README for its chapter timings and editable caption/animation
+source. This edit introduces the site to a first-time audience and has no audio.
 
 ## To do
 

@@ -16,7 +16,8 @@ const WIDTH = 1280, RATIO = 16 / 10, DPR = 1.25;           // 1600x1000 images
 // Positioned as the final README shows them: paper, discussion, paper, discussion.
 const ALL = ["barnes-stein.pdf", "Stein discussion - Hamdi et al.pptx",
              "rd174_don_2026_lehigh.pdf", "Stein perceived skin tone NBER SI.key"];
-const TITLES = ["Paper A", "Discussion A", "Paper B", "Discussion B"];
+const TITLES = ["Paper A", "Discussion A", "Paper B", "Discussion B", "Closing talk"];
+const GOOGLE = "https://docs.google.com/presentation/d/1xI_Som_kSUjr9tY1vDGqkquRlGC_YdYY3YUk31ccPW0/edit";
 const PDF_SLIDE = 7;
 mkdirSync(OUT, { recursive: true });
 
@@ -47,13 +48,28 @@ async function shot(p, name) {
   console.log("wrote", name);
 }
 
-// 1. Four talks dropped in at once, retitled, the ZIP named.
+// 1. Four local decks and a Google Slides PDF, matching the social demo.
 await list.eval(`__demo.load(${JSON.stringify(ALL)})`);
 const zone = await list.box("#drop-zone");
 await list.eval(`__demo.place(${zone.x}, ${zone.y})`);
 await list.eval(`__demo.drop(${JSON.stringify(ALL)})`);
 await list.eval(`__demo.release(${JSON.stringify(ALL)})`);
 await list.until("__demo.rows().length === 4");
+await list.settle();
+const link = await list.box("#link");
+await list.click(link.x, link.y);
+await list.call("Input.insertText", { text: GOOGLE });
+const add = await list.box("#add-link");
+await list.click(add.x, add.y);
+await list.until(`__demo.rows().length === 5 && (() => {
+  const img = document.querySelector('#slides .slide:last-child img');
+  return img && !img.hidden && img.complete && img.naturalWidth > 0;
+})()`, 30000);
+await list.settle();
+const getPdf = await list.box("#slides .get-pdf:not([hidden])");
+await list.click(getPdf.x, getPdf.y);
+await list.until(`!document.querySelector('#slides .get-pdf:not([hidden])')
+  && !!document.querySelector('#slides .source-link:not([hidden])')`, 60000);
 await list.settle();
 const first = await list.box("#slides .slide:nth-child(1) .title");
 await list.click(first.left + 60, first.y, 3);
@@ -74,7 +90,9 @@ await list.settle();
 // A little taller than the 16:10 frame, so the whole list and the footer fit
 // without a scrollbar.
 await list.call("Emulation.setDeviceMetricsOverride",
-  { width: VIEW.width, height: 860, deviceScaleFactor: DPR, mobile: false });
+  { width: VIEW.width, height: Math.max(860, await list.eval("document.documentElement.scrollHeight")),
+    deviceScaleFactor: DPR, mobile: false });
+await list.calibrate();
 await shot(list, "01-list.png");
 
 // 2. The presenters.

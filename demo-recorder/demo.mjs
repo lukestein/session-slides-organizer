@@ -1,19 +1,20 @@
 import { sleep } from "./cdp.mjs";
 import { DIR, VIEW, startSite, launch, page, KEYS, Recorder, fitToWindow } from "./driver.mjs";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, readdirSync } from "node:fs";
+import { copyFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 
 const PORT = 8099, SITE = DIR + "serve";
 const ONE = "barnes-stein.pdf";
 const REST = ["rd174_don_2026_lehigh.pdf", "Stein discussion - Hamdi et al.pptx",
               "Stein perceived skin tone NBER SI.key"];
 const ALL = [ONE, ...REST];
-const TITLES = ["Paper A", "Discussion A", "Paper B", "Discussion B"];
+const TITLES = ["Paper A", "Discussion A", "Paper B", "Discussion B", "Closing talk"];
 // Luke's own deck, shared with anyone who has the link. Its title, first slide
 // and address are all on screen, so it must stay one he chose for this.
 const GOOGLE = "https://docs.google.com/presentation/d/1xI_Som_kSUjr9tY1vDGqkquRlGC_YdYY3YUk31ccPW0/edit";
 const SESSION = "Corporate finance 11am";
 const makeVideo = process.argv.includes("--video");
+const social = process.argv.includes("--social");
 const only = (process.argv.find(a => a.startsWith("--beats=")) || "").slice(8).split(",").filter(Boolean);
 const want = name => !only.length || only.includes(name);
 const log = (...a) => console.log(new Date().toISOString().slice(14, 22), ...a);
@@ -106,10 +107,14 @@ if (want("link")) {
   const before = (await list.eval("__demo.rows()")).length;
   await list.click(add.x, add.y);
   await rec.cut(() => list.until(`document.querySelectorAll('#slides .slide').length > ${before}
-    && !document.querySelector('#slides .slide:last-child img').hidden`, 30000), 350);
-  await sleep(1300);
+    && (() => { const img = document.querySelector('#slides .slide:last-child img');
+      return img && !img.hidden && img.complete && img.naturalWidth > 0; })()`, 30000), 350);
+  await sleep(social ? 350 : 1300);
   console.log("  google row:", JSON.stringify((await list.eval("__demo.rows()")).at(-1)));
 }
+
+// In the short edit, show the PDF conversion immediately after the link.
+if (social && want("getpdf")) await getGooglePdf();
 
 // ----------------------------------------------------------------- 3. reorder
 if (want("reorder")) {
@@ -147,9 +152,10 @@ if (want("rename")) {
   await sleep(130);
   await list.click(first.left + 60, first.y, 3);   // triple click selects the title
   await sleep(190);
-  for (const [i, text] of TITLES.entries()) {
+  const titles = TITLES.slice(0, (await list.eval("__demo.rows()")).length);
+  for (const [i, text] of titles.entries()) {
     await list.type(text, 30);
-    if (i === TITLES.length - 1) break;
+    if (i === titles.length - 1) break;
     await sleep(120);
     await list.key("Tab", KEYS.Tab);
     await sleep(150);
@@ -255,12 +261,15 @@ if (want("pdf")) {
   beat("pdf");
   const { deck, park, entry } = await openPresenter("#slides .slide:nth-child(1)", "pdf");
 
-  // The shortcut card first, over the cover slide: it names the keys the rest of
-  // the beat then actually uses.
-  await deck.key("?", KEYS["?"]);
-  await sleep(1400);
-  await deck.key("Escape", KEYS.Escape);
-  await sleep(600);
+  if (!social) {
+    // The shortcut card first, over the cover slide: it names the keys the rest of
+    // the beat then actually uses.
+    await deck.key("?", KEYS["?"]);
+    await sleep(1400);
+    await deck.key("Escape", KEYS.Escape);
+    await sleep(600);
+
+  }
 
   // Straight to the slide carrying a link, through the picker, rather than
   // paging there: the demo is about managing the session, not reading slides.
@@ -277,8 +286,9 @@ if (want("pdf")) {
   for (const leg of ["out", "back"]) {
     const from = await page_no(deck);
     const link = await deck.box(".annotationLayer a");
-    await deck.glide(link.x, link.y, 620);
-    await sleep(240);
+    if (social) beat('pdf_link_' + leg);
+    await deck.glide(link.x, link.y, social ? 900 : 620);
+    await sleep(social ? 350 : 240);
     // Chrome fires a synthetic pointermove at the user's REAL mouse position
     // whenever the page relayouts. If their pointer happens to rest near the
     // foot of the window the app lifts the slide picker over the slide -- quite
@@ -294,6 +304,7 @@ if (want("pdf")) {
       await sleep(160);
     }
     if (await under() === "blocked") throw new Error("link is covered; cannot click it");
+    if (social) await deck.eval(`__demo.pulse(${link.x}, ${link.y})`);
     await deck.click(link.x, link.y);
     await deck.until(`parseInt(document.querySelector('#deck-count').textContent, 10) !== ${from}`, 10000);
     console.log(`  link ${leg}: ${from} -> ${await page_no(deck)}`);
@@ -318,19 +329,23 @@ if (want("pptx")) {
 // ------------------------------------------------------------- 6b. Get PDF
 // The Google row becomes an ordinary PDF row, dagger and all. The download
 // from Google is cut.
-if (want("getpdf")) {
+async function getGooglePdf() {
   beat("getpdf");
   await list.settle();
   const button = await list.box("#slides .get-pdf:not([hidden])");
   await list.glide(button.x, button.y, 650);
   await sleep(200);
   await list.click(button.x, button.y);
-  await rec.cut(() => list.until(`!document.querySelector('#slides .get-pdf:not([hidden])')
-    && !!document.querySelector('#slides .source-link:not([hidden])')`, 60000), 300);
-  await list.settle();
-  await sleep(1500);
+  await rec.cut(async () => {
+    await list.until(`!document.querySelector('#slides .get-pdf:not([hidden])')
+      && !!document.querySelector('#slides .source-link:not([hidden])')`, 60000);
+    await list.settle();
+  }, social ? 120 : 300);
+  await sleep(social ? 350 : 1500);
   console.log("  pdf row:", JSON.stringify((await list.eval("__demo.rows()")).at(-1)));
 }
+
+if (!social && want("getpdf")) await getGooglePdf();
 
 // --------------------------------------------------------------------- 7. zip
 if (want("zip")) {
@@ -389,7 +404,7 @@ if (want("import")) {
   await fresh.eval(`__demo.drop(${JSON.stringify([zipName])})`);
   await sleep(420);
   await fresh.eval(`__demo.release(${JSON.stringify([zipName])})`);
-  await fresh.until("document.querySelectorAll('#slides .slide').length >= 5", 20000);
+  await fresh.until(`document.querySelectorAll('#slides .slide').length >= 5`, 20000);
   await fresh.eval("__demo.show(false)");
   await fresh.settle();
   console.log("  restored:", JSON.stringify((await fresh.eval("__demo.rows()")).map(r => r.title)),
@@ -402,6 +417,13 @@ const stats = await rec.stop();
 log("captured", stats.frames, "frames over", (stats.ms / 1000).toFixed(1), "s",
     "=", (stats.frames / (stats.ms / 1000)).toFixed(1), "fps");
 console.log("beats:", JSON.stringify(mark));
+// Export timecodes on the edited timeline, with network/navigation waits removed.
+const editedTime = t => (t - rec.cuts.reduce((sum, [a, b]) =>
+  sum + Math.max(0, Math.min(t, b) - a), 0)) / 1000;
+writeFileSync(DIR + "take.json", JSON.stringify({
+  social, beats: Object.fromEntries(Object.entries(mark).map(([k, t]) => [k, editedTime(t)])),
+  duration: editedTime(stats.ms),
+}, null, 2) + "\n");
 
 if (makeVideo) {
   rec.writeList(DIR + "frames/list.txt");

@@ -35,6 +35,18 @@ function place(x, y) {
 // slide link into a thumbnail instead. The driver places this cursor explicitly.
 
 NS.show = (on = true) => { boot(); cursor.style.opacity = on ? "1" : "0"; };
+// Brief click cue, used only for the PDF link demonstration.
+NS.pulse = (x, y) => {
+  boot();
+  const ring = document.createElement("div");
+  ring.style.cssText = `position:absolute;left:${x - 22}px;top:${y - 22}px;`
+    + "width:44px;height:44px;border:3px solid #e9bb41;border-radius:50%;"
+    + "box-shadow:0 0 0 2px #fff;background:rgba(233,187,65,.18);box-sizing:border-box";
+  layer.prepend(ring);
+  ring.animate([{ transform: "scale(.7)", opacity: 1 },
+    { transform: "scale(1.35)", opacity: 0 }], { duration: 650, fill: "forwards" })
+    .finished.then(() => ring.remove());
+};
 NS.at = () => ({ x: cx, y: cy });
 NS.place = place;
 
