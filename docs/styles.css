@@ -302,7 +302,9 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 }
 .receive-actions :is(a, button):is(:hover, :focus-visible) { color: var(--accent); }
 
-.list-tools { display: flex; justify-content: flex-end; margin-top: .35rem; }
+.list-tools { display: flex; gap: 1rem; align-items: baseline; justify-content: flex-end; margin-top: .35rem; }
+.audience-tools { margin-right: auto; font-size: .78rem; color: var(--muted); }
+.audience-tools .text-button:hover { color: var(--accent); }
 .text-button {
   padding: .2rem 0;
   border: 0;
@@ -592,7 +594,10 @@ main kbd {
 .deck-page {
   position: relative;
   display: grid;
-  grid-template-rows: auto 1fr;
+  /* minmax(0, …) so the slide's own size never props the stage open: the PDF
+     page is fitted to the stage, and must be able to shrink with the window. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100dvh;
   /* The strip parks below the foot, so clip rather than grow a scrollbar and
      shove the slide around. Clip, not hidden: hidden still makes a scroll
@@ -646,6 +651,7 @@ main kbd {
 
 .deck-count {
   margin-left: auto;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: #b4b4bd;
 }
@@ -660,6 +666,7 @@ main kbd {
   cursor: pointer;
 }
 
+.deck-button { white-space: nowrap; }
 .deck-button:hover { background: #3a3a44; }
 
 .deck-stage {
@@ -700,7 +707,7 @@ main kbd {
 .deck-edge:focus-visible { opacity: 1; background: rgba(255, 255, 255, .12); }
 
 /* In full screen the bar hides until the pointer reaches the top. */
-:fullscreen .deck-page { grid-template-rows: 1fr; }
+:fullscreen .deck-page { grid-template-rows: minmax(0, 1fr); }
 :fullscreen .deck-bar {
   position: absolute;
   inset: 0 0 auto;
@@ -874,3 +881,236 @@ main kbd {
 
 .annotationLayer .linkAnnotation.hasBorder:hover { background-color: rgb(255 255 0 / .2); }
 .annotationLayer .hasBorder { background-size: 100% 100%; }
+
+/* Presenter view: the current slide, the next one, notes and a timer, with
+   every slide along the foot. The audience screen shows the slide itself. */
+.presenter-view .deck-page {
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 30%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "bar bar" "stage side" "strip strip";
+}
+.presenter-view .deck-bar { grid-area: bar; }
+.presenter-view .deck-stage { grid-area: stage; }
+.presenter-view .deck-edge,
+.presenter-view .single-only { display: none; }
+
+/* In full screen the podium keeps its bar: nobody else is looking at it. */
+:fullscreen .presenter-view .deck-page { grid-template-rows: auto minmax(0, 1fr) auto; }
+:fullscreen .presenter-view .deck-bar { position: static; opacity: 1; }
+
+.presenter-view .deck-picker {
+  grid-area: strip;
+  position: static;
+  transform: none;
+  visibility: visible;
+  transition: none;
+  background: #16161b;
+}
+
+/* Blanking hides the slide from the room; here it only dims it, and says so. */
+.presenter-view .deck-blank {
+  grid-area: stage;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .7);
+  cursor: pointer;
+}
+.presenter-view .deck-blank[hidden] { display: none; }
+.presenter-view .deck-blank[data-colour="white"] { background: rgba(255, 255, 255, .7); }
+.presenter-view .deck-blank::after {
+  content: "Audience screen blanked. Press B, W or an arrow key to show the slide.";
+  padding: .5rem .9rem;
+  font-size: .9rem;
+  color: #f2f2f4;
+  background: #1b1b21;
+  border: 1px solid #3c3c46;
+  border-radius: .4rem;
+}
+
+.deck-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+  min-height: 0;
+  padding: .75rem .9rem .75rem .25rem;
+  overflow: auto;
+}
+.deck-side[hidden] { display: none; }
+.deck-side h2 {
+  margin: 0 0 .35rem;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #8b8b96;
+}
+
+.deck-clock {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-variant-numeric: tabular-nums;
+}
+.deck-elapsed { font-size: 1.9rem; font-weight: 600; line-height: 1; }
+.deck-clock [hidden] { display: none; }
+.deck-clock .deck-timer-close {
+  padding: .15rem .45rem;
+  font-size: .9rem;
+  line-height: 1;
+  color: #b4b4bd;
+  background: transparent;
+  border-color: transparent;
+}
+.deck-clock .deck-timer-close:hover { color: #f2f2f4; background: #2c2c34; }
+.deck-clock .deck-button { padding: .15rem .5rem; font-size: .78rem; }
+.deck-time { margin-left: auto; font-size: 1.1rem; color: #b4b4bd; }
+
+.deck-builds { margin: 0 0 .35rem; font-size: .85rem; color: #a9d3b9; }
+
+.deck-upnext-slide {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid #2c2c34;
+  border-radius: .3rem;
+}
+.deck-upnext-picture { width: 100%; height: 100%; display: grid; place-items: center; }
+.deck-upnext-picture > :is(svg, canvas) {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  background: #fff;
+}
+.deck-upnext-picture > svg { width: 100%; height: 100%; }
+.deck-end { margin: 0; color: #8b8b96; font-size: .9rem; }
+
+.deck-notes { display: flex; flex-direction: column; min-height: 6rem; flex: 1 1 auto; }
+.deck-notes[hidden] { display: none; }
+.deck-notes-text {
+  flex: 1 1 auto;
+  overflow: auto;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: #e6e6ea;
+}
+
+.deck-screen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .6rem;
+  margin-top: auto;
+  padding: .55rem .7rem;
+  font-size: .85rem;
+  color: #c9c9d2;
+  background: #1b1b21;
+  border: 1px solid #2c2c34;
+  border-left: 3px solid #6b6b76;
+  border-radius: .4rem;
+}
+.deck-screen p { margin: 0; flex: 1 1 12rem; }
+.deck-screen [hidden] { display: none; }
+.deck-side[data-screen="live"] .deck-screen { border-left-color: #5fa47f; }
+
+/* Thumbnails drawn on a canvas fill their box, like the SVG ones. */
+.deck-thumb canvas { display: block; width: 100%; height: auto; }
+.presenter-view .deck-thumb.current { border-color: #5fa47f; box-shadow: 0 0 0 2px #5fa47f; }
+
+/* A narrow window has no room for a column beside the slide. The panel becomes
+   a short band beneath it instead: a small next slide on the left, and the
+   clock, notes and screen status beside it. The slide keeps the rest. */
+@media (max-width: 52rem) {
+  .presenter-view .deck-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "bar" "stage" "side" "strip";
+  }
+  .deck-side {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "upnext clock" "upnext notes" "upnext screen";
+    gap: .45rem .9rem;
+    height: min(13rem, 32dvh);
+    padding: .5rem .9rem;
+    overflow: hidden;
+  }
+  .deck-clock { grid-area: clock; }
+  .deck-elapsed { font-size: 1.4rem; }
+  .deck-time { font-size: 1rem; }
+  .deck-upnext { grid-area: upnext; display: flex; flex-direction: column; min-height: 0; }
+  .deck-upnext-slide { flex: 1 1 auto; min-height: 0; aspect-ratio: auto; }
+  .deck-notes { grid-area: notes; min-height: 0; }
+  .deck-notes-text { font-size: .95rem; }
+  .deck-screen { grid-area: screen; margin-top: 0; padding: .35rem .6rem; }
+  .deck-bar { gap: .5rem; padding-inline: .6rem; }
+  .deck-bar .deck-button { padding: .25rem .5rem; font-size: .85rem; }
+  /* The bar keeps the mark and gives the wordmark's room to the title. */
+  .deck-brand .site-address,
+  .deck-brand::after { display: none; }
+}
+
+/* Audience screen (audience.html): the slide and nothing else, or a quiet
+   waiting page between talks. */
+.audience-body { background: #000; }
+.audience-page {
+  position: relative;
+  display: grid;
+  /* Tracks fixed to the window. Left to size themselves, they grew to fit the
+     slide already drawn, so the stage never measured smaller than its last
+     render: after leaving full screen the slide stayed full-screen size. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  height: 100dvh;
+  overflow: clip;
+}
+.audience-stage { padding: 0; }
+.audience-page > .deck-stage { grid-area: 1 / 1; }
+
+.audience-idle {
+  grid-area: 1 / 1;
+  display: none;
+  place-items: center;
+  opacity: .35;
+}
+.idle .audience-idle { display: grid; }
+.audience-idle svg { display: block; }
+
+.audience-setup {
+  position: absolute;
+  inset: auto 1.5rem 1.5rem;
+  z-index: 3;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1.1rem 1.3rem;
+  font-size: .95rem;
+  color: #dcdce2;
+  background: #1b1b21;
+  border: 1px solid #3c3c46;
+  border-radius: .6rem;
+}
+.audience-setup[hidden] { display: none; }
+.audience-setup h1 { margin: 0 0 .6rem; font-size: 1.05rem; }
+.audience-setup h1 .site-address b { color: #a9d3b9; }
+.audience-setup h1 .site-address i { color: #5fa47f; font-style: normal; }
+.audience-setup p { margin: .4rem 0; }
+.audience-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem !important; }
+.audience-actions [hidden] { display: none; }
+.audience-hint { min-height: 1.2em; color: #a9d3b9; font-size: .85rem; }
+
+.audience-corner {
+  position: absolute;
+  right: .75rem;
+  bottom: .75rem;
+  z-index: 3;
+  opacity: .85;
+  transition: opacity .3s;
+}
+.audience-corner[hidden] { display: none; }
+.still .audience-corner { opacity: 0; pointer-events: none; }
+.still { cursor: none; }

@@ -1,5 +1,9 @@
 [
  "app.mjs",
+ "audience-channel.mjs",
+ "audience.html",
+ "audience.mjs",
+ "deck-open.mjs",
  "deck-pdf.mjs",
  "deck-pptx.mjs",
  "deck-viewer.mjs",

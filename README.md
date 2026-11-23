@@ -65,6 +65,15 @@ Coming back from a blank screen returns to the slide that was up, so a key press
 
 The presentation is read into memory before it is shown, so closing the organizer tab or removing the row cannot interrupt a talk in progress.
 
+#### Presenter view, for a projector that is a second screen
+
+Most rooms mirror the laptop or podium screen onto the projector, and nothing above changes for them. Where the projector is a separate display, the speaker can see their next slide, notes and a timer while the room sees only the slide.
+
+- **For one talk**, click **Presenter view** in the presenter bar. A second window opens: drag it to the projector and click **Full screen** there. In Chrome and Edge, **Full screen on the other display** does the moving for you, after asking once for permission. The presenter tab now shows the current slide, the next one, the speaker notes from a PowerPoint file, the time elapsed (**×** hides it) and the time of day, with every slide along the bottom.
+- **For a whole session**, click **Open audience screen** under the list before the first talk, and move that window to the projector and make it full screen. From then on, every talk opened with **Open in browser** starts in presenter view on the laptop and appears on the projector, replacing the talk before it. Closing a talk's tab sends the projector back to a quiet waiting screen. Opening an earlier talk's tab again offers **Show this talk** to put it back up.
+
+Both windows work: the keys, a clicker, a click on a thumbnail, and a link inside a slide move the talk in either one, and the other follows. **B** and **W** blank the projector, while the presenter view keeps the slide in view, dimmed, so the speaker knows where they are. **Leave presenter view** returns the tab to a single screen and frees the projector. The windows talk to each other inside this browser only: nothing is sent anywhere.
+
 ### 4. Download the session
 
 **Download session ZIP** bundles the presentation files, in speaking order, without leaving your computer. Name the ZIP in the field beside the button, then download it.
