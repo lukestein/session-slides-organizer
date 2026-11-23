@@ -3,7 +3,15 @@
 //
 // The shell here — bar, keyboard, blanking, thumbnail strip, full screen — is
 // the same whatever the format. Rendering is a small engine per format, in
-// deck-pptx.mjs and deck-pdf.mjs.
+// deck-pptx.mjs and deck-pdf.mjs, opened through deck-open.mjs.
+//
+// Presenter view turns this tab into the speaker's side of a two-screen setup:
+// the current slide, the next one, notes, a timer and every slide along the
+// foot, while an audience screen (audience.mjs) in another window shows the
+// slide to the room. Without one, nothing changes.
+import { holdUntilClosed, newId, openAudienceWindow, openChannel, trackAudiences } from "./audience-channel.mjs";
+import { extensionOf, makeMove, mimeTypes, moveFor, moveForClick, openDeck } from "./deck-open.mjs";
+
 const stage = document.querySelector("#deck-stage");
 const counter = document.querySelector("#deck-count");
 const heading = document.querySelector("#deck-title");
@@ -14,10 +22,40 @@ const picker = document.querySelector("#deck-picker");
 const help = document.querySelector("#deck-help");
 const downloadLink = document.querySelector("#deck-download");
 const original = document.querySelector("#deck-original");
+const presenterButton = document.querySelector("#deck-presenter");
+const side = document.querySelector("#deck-side");
+const upNext = document.querySelector("#deck-upnext");
+const builds = document.querySelector("#deck-builds");
+const notesSection = document.querySelector("#deck-notes-section");
+const notesText = document.querySelector("#deck-notes");
+const elapsed = document.querySelector("#deck-elapsed");
+const clock = document.querySelector("#deck-time");
+const screenStatus = document.querySelector("#deck-screen-status");
+const screenAction = document.querySelector("#deck-screen-action");
 let deck;
 // The picker stays put when it was asked for, and withdraws when it was only
 // uncovered by the pointer resting at the foot of the slide.
 let pickerPinned = false;
+
+// Presenter view, and the audience screen it drives.
+const id = newId("presenter");
+let presenterView = false;
+let talk = null;  // { file, name, title }: what an audience screen is handed.
+let seq = 0;
+let applying = false;
+let lastSent = "";
+// Set when this tab opened an audience screen, so it claims that screen as
+// soon as the screen says it is there.
+let claimNext = false;
+// Whether the audience screen was last showing this talk, so it can be taken
+// back after the screen is reloaded.
+let mine = false;
+const audiences = trackAudiences(audienceChanged);
+// So an audience screen can tell when the talk it shows has been closed,
+// however that happened.
+holdUntilClosed(id);
+const channel = openChannel(receive);
+channel?.postMessage({ type: "ping" });
 
 function message(text) {
   stage.replaceChildren(Object.assign(document.createElement("p"), {
@@ -34,20 +72,34 @@ function updateCount() {
   });
 }
 
+// Runs after every move and every change of blanking, whatever caused it: a
+// key, a click, a link on the slide, or the audience screen reporting one.
+function changed() {
+  updateCount();
+  if (!presenterView) return;
+  followStrip();
+  updateSide();
+  sendState();
+}
+
 function blanked() {
   return Boolean(blank.dataset.colour);
 }
 
-// B and W blank the screen as they do in PowerPoint.
+// B and W blank the screen as they do in PowerPoint. In presenter view they
+// blank the audience screen, and this tab marks the slide as hidden.
 function setBlank(colour) {
   const next = blank.dataset.colour === colour ? "" : colour;
   blank.dataset.colour = next;
   blank.hidden = !next;
+  changed();
 }
 
 function resume() {
+  if (!blanked()) return;
   blank.dataset.colour = "";
   blank.hidden = true;
+  changed();
 }
 
 function showHelp(open) {
@@ -58,12 +110,7 @@ function pickerOpen() {
   return picker.classList.contains("open");
 }
 
-function showPicker(open, pin = false) {
-  // A class, not the hidden attribute, so the strip can slide both ways.
-  picker.classList.toggle("open", open);
-  pickerPinned = open && pin;
-  if (!open) return;
-  fillPicker();
+function centreStrip() {
   const current = picker.querySelector(".current");
   if (!current) return;
   // Scroll the strip itself rather than calling scrollIntoView, which walks up
@@ -73,7 +120,28 @@ function showPicker(open, pin = false) {
     left: current.offsetLeft - (picker.clientWidth - current.offsetWidth) / 2,
     behavior: "instant",
   });
+}
+
+function showPicker(open, pin = false) {
+  // Presenter view keeps the strip along the foot at all times.
+  if (presenterView && !open) return;
+  // A class, not the hidden attribute, so the strip can slide both ways.
+  picker.classList.toggle("open", open);
+  pickerPinned = open && pin;
+  if (!open) return;
+  fillPicker();
+  centreStrip();
   requestAnimationFrame(() => requestAnimationFrame(paintVisibleThumbs));
+}
+
+// In presenter view the strip keeps the current slide in sight, without
+// jumping while it is still on screen.
+function followStrip() {
+  const current = picker.querySelector(".current");
+  if (!current) return;
+  const strip = picker.getBoundingClientRect();
+  const box = current.getBoundingClientRect();
+  if (box.left < strip.left || box.right > strip.right) centreStrip();
 }
 
 // Thumbnails render only once they come into view, so a long deck does not pay
@@ -120,7 +188,7 @@ function fillPicker() {
       resume();
       deck?.goTo(index);
       showPicker(false);
-      updateCount();
+      changed();
     });
     return thumb;
   }));
@@ -129,27 +197,24 @@ function fillPicker() {
 }
 
 function step(move) {
-  return () => { resume(); move(); updateCount(); };
+  return () => { resume(); move(); changed(); };
 }
 
 document.querySelector("#deck-prev").addEventListener("click", step(() => deck?.prev()));
 document.querySelector("#deck-next").addEventListener("click", step(() => deck?.next()));
 
-// Clicking near the left or right edge moves a slide. The strips that mark
-// those zones are not hit-testable, so a link sitting at the edge of a page
-// still takes its own click; what is left over is placed by where it landed.
-const edgeShare = 0.12;
+// Click the current slide to advance, or its leftmost eighth to go back.
+// Shared with the audience window so links, media and letterboxing behave
+// the same in both. The next-slide preview and page controls keep their clicks.
 document.addEventListener("click", event => {
   if (!deck) return;
-  // Links, controls and the page furniture keep their own clicks.
-  if (event.target.closest("a, button, input, .deck-bar, .deck-picker, .deck-help, .deck-blank")) {
+  if (event.target.closest(".deck-blank")) {
+    resume();
     return;
   }
-  const edge = window.innerWidth * edgeShare;
-  if (event.clientX <= edge) step(() => deck.prev())();
-  else if (event.clientX >= window.innerWidth - edge) step(() => deck.next())();
+  const move = moveForClick(event, stage);
+  if (move) step(() => makeMove(deck, move))();
 });
-blank.addEventListener("click", resume);
 help.addEventListener("click", () => showHelp(false));
 
 document.querySelector("#deck-slides").addEventListener("click", () => {
@@ -165,7 +230,7 @@ document.querySelector("#deck-slides").addEventListener("click", () => {
 // leaves a band where neither happens, which settles it.
 const liftWithin = 40;
 document.addEventListener("pointermove", event => {
-  if (event.pointerType === "touch" || pickerPinned) return;
+  if (event.pointerType === "touch" || pickerPinned || presenterView) return;
   const fromFoot = window.innerHeight - event.clientY;
   if (!pickerOpen()) {
     if (deck && fromFoot <= liftWithin && !blanked() && help.hidden) showPicker(true);
@@ -201,15 +266,9 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 document.addEventListener("keydown", event => {
+  const move = moveFor(event);
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
-  const moves = {
-    ArrowRight: () => deck?.next(), PageDown: () => deck?.next(), " ": () => deck?.next(),
-    ArrowDown: () => deck?.next(), ArrowLeft: () => deck?.prev(), PageUp: () => deck?.prev(),
-    ArrowUp: () => deck?.prev(), Home: () => deck?.goTo(0),
-    End: () => deck?.goTo((deck.count ?? 1) - 1),
-  };
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  const move = moves[event.key];
 
   if (move) {
     event.preventDefault();
@@ -221,8 +280,8 @@ document.addEventListener("keydown", event => {
     }
     showHelp(false);
     showPicker(false);
-    move();
-    updateCount();
+    makeMove(deck, move);
+    changed();
     return;
   }
   if (key === "b" || key === "w") {
@@ -247,22 +306,12 @@ document.addEventListener("keydown", event => {
     showHelp(help.hidden);
     return;
   }
-  if (event.key === "Escape" && (!help.hidden || pickerOpen())) {
+  if (event.key === "Escape" && (!help.hidden || (pickerOpen() && !presenterView))) {
     event.preventDefault();
     showHelp(false);
     showPicker(false);
   }
 });
-
-const mimeTypes = {
-  pdf: "application/pdf",
-  ppt: "application/vnd.ms-powerpoint",
-  pps: "application/vnd.ms-powerpoint",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  pptm: "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
-  ppsx: "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
-  ppsm: "application/vnd.ms-powerpoint.slideshow.macroEnabled.12",
-};
 
 // Re-fit the page after the window changes shape, and after entering or leaving
 // full screen. Only the PDF engine needs this; the deck renderer scales itself.
@@ -273,6 +322,240 @@ function refit() {
 }
 window.addEventListener("resize", refit);
 document.addEventListener("fullscreenchange", refit);
+
+// ---- Presenter view -------------------------------------------------------
+
+function position() {
+  return { index: deck.index, step: deck.step ?? 0, blank: blank.dataset.colour || "" };
+}
+
+function onScreen() {
+  return audiences.showing(id);
+}
+
+// Hands this talk to the audience screens. The newest talk handed over is the
+// one they show, so opening the next talk moves the room on to it.
+function sendTalk() {
+  if (!channel || !deck || !talk) return;
+  claimNext = false;
+  seq += 1;
+  const now = position();
+  lastSent = JSON.stringify(now);
+  channel.postMessage({ type: "present", from: id, seq, ...talk, ...now });
+}
+
+function sendState() {
+  if (applying || !channel || !deck || !onScreen()) return;
+  const now = position();
+  const key = JSON.stringify(now);
+  if (key === lastSent) return;
+  lastSent = key;
+  seq += 1;
+  channel.postMessage({ type: "state", from: id, seq, ...now });
+}
+
+function receive(message) {
+  if (audiences.handle(message)) return;
+  // A move made on the audience screen, by its own keys or a link on the slide.
+  if (message.type === "state" && message.owner === id && message.from.startsWith("audience:")) {
+    if (!deck || !(message.seq > seq)) return;
+    seq = message.seq;
+    applying = true;
+    try {
+      deck.show(message.index, message.step);
+      blank.dataset.colour = message.blank || "";
+      blank.hidden = !message.blank;
+    } finally {
+      applying = false;
+    }
+    lastSent = JSON.stringify(position());
+    changed();
+  }
+}
+
+function audienceChanged(message) {
+  if (message.type === "audience") {
+    if (message.owner === id) mine = true;
+    else if (message.owner) mine = false;
+    // A screen that has just opened, or been reloaded, and is waiting: the tab
+    // that opened it claims it, as does the tab whose talk it was showing.
+    else if (presenterView && deck && (claimNext || mine)) sendTalk();
+  }
+  updateScreenStatus();
+}
+
+function updateScreenStatus() {
+  if (!presenterView) return;
+  let text;
+  let action = "";
+  if (!channel) {
+    text = "This browser can’t link windows together.";
+  } else if (onScreen()) {
+    text = "Showing on the audience screen.";
+  } else if (audiences.open) {
+    text = audiences.idle
+      ? "The audience screen is waiting."
+      : "The audience screen is showing another talk.";
+    action = "Show this talk";
+  } else if (claimNext) {
+    text = "Opening the audience screen…";
+  } else {
+    text = "No audience screen is open. Open one, then move it to the projector.";
+    action = "Open audience screen";
+  }
+  screenStatus.textContent = text;
+  side.dataset.screen = onScreen() ? "live" : "off";
+  screenAction.textContent = action;
+  screenAction.hidden = !action;
+}
+
+screenAction.addEventListener("click", () => {
+  if (audiences.open) {
+    sendTalk();
+  } else {
+    claimNext = true;
+    if (!openAudienceWindow()) {
+      claimNext = false;
+      screenStatus.textContent = "The browser blocked the new window. Allow pop-ups for this site and try again.";
+      return;
+    }
+    updateScreenStatus();
+  }
+});
+
+// The next slide, and how many builds are still to come on this one.
+const previews = new Map();
+function updateSide() {
+  if (!deck) return;
+  const remaining = (deck.steps ?? 0) - (deck.step ?? 0);
+  builds.hidden = remaining <= 0;
+  builds.textContent = remaining === 1 ? "1 more click on this slide"
+    : `${remaining} more clicks on this slide`;
+
+  const following = deck.index + 1;
+  if (following >= deck.count) {
+    upNext.replaceChildren(Object.assign(document.createElement("p"), {
+      className: "deck-end", textContent: "End of presentation",
+    }));
+  } else if (previews.has(following)) {
+    upNext.replaceChildren(previews.get(following));
+  } else {
+    const box = document.createElement("div");
+    box.className = "deck-upnext-picture";
+    upNext.replaceChildren(box);
+    Promise.resolve()
+      .then(() => deck.renderThumb(following, box))
+      .then(() => previews.set(following, box))
+      .catch(() => {});
+  }
+
+  const notes = deck.notes?.(deck.index) ?? "";
+  notesText.textContent = notes;
+  notesSection.hidden = !notes;
+  side.classList.toggle("has-notes", Boolean(notes));
+}
+
+// Elapsed time since presenter view began, and the time of day.
+let startedAt = 0;
+let ticking;
+function tick() {
+  const seconds = Math.floor((Date.now() - startedAt) / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  const rest = String(seconds % 60).padStart(2, "0");
+  elapsed.textContent = hours ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
+  const now = new Date();
+  clock.dateTime = now.toISOString();
+  clock.textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+document.querySelector("#deck-restart").addEventListener("click", () => {
+  startedAt = Date.now();
+  tick();
+});
+
+// A running clock is not for everyone. Hiding it keeps the time of day, and
+// lasts for this talk only, so the next speaker at a shared podium gets it back.
+const timerParts = ["#deck-elapsed", "#deck-timer-close", "#deck-restart"]
+  .map(selector => document.querySelector(selector));
+const timerShow = document.querySelector("#deck-timer-show");
+function showTimer(on) {
+  for (const part of timerParts) part.hidden = !on;
+  timerShow.hidden = on;
+}
+document.querySelector("#deck-timer-close").addEventListener("click", () => {
+  showTimer(false);
+  timerShow.focus();
+});
+timerShow.addEventListener("click", () => {
+  showTimer(true);
+  document.querySelector("#deck-restart").focus();
+});
+
+function setPresenterView(on) {
+  if (presenterView === on) return;
+  presenterView = on;
+  document.body.classList.toggle("presenter-view", on);
+  side.hidden = !on;
+  presenterButton.textContent = on ? "Leave presenter view" : "Presenter view";
+  presenterButton.title = on
+    ? "Back to one screen: the slides fill this tab, and the audience screen waits"
+    : "Notes, the next slide and a timer here, with the slides on a second screen";
+  document.querySelector("#deck-slides").hidden = on;
+  if (on) {
+    startedAt = Date.now();
+    tick();
+    ticking = setInterval(tick, 1000);
+    showPicker(true);
+    updateSide();
+    updateScreenStatus();
+  } else {
+    clearInterval(ticking);
+    if (onScreen()) channel?.postMessage({ type: "release", from: id });
+    claimNext = false;
+    mine = false;
+    picker.classList.remove("open");
+    pickerPinned = false;
+  }
+  refit();
+}
+
+presenterButton.addEventListener("click", () => {
+  if (presenterView) {
+    setPresenterView(false);
+    return;
+  }
+  setPresenterView(true);
+  if (audiences.open) {
+    sendTalk();
+  } else if (channel) {
+    // Straight from the click, or the popup blocker steps in.
+    claimNext = Boolean(openAudienceWindow());
+    updateScreenStatus();
+  }
+});
+
+// Closing the tab hands the room back to the audience screen's waiting page.
+// The lock taken above does this too, but only once the tab is gone, which a
+// browser may put off while it keeps the page in its back-forward cache.
+window.addEventListener("pagehide", () => {
+  if (onScreen()) channel?.postMessage({ type: "release", from: id });
+});
+
+// Waits briefly for an audience screen to answer the ping sent on load.
+function audienceAnswer(within) {
+  if (audiences.open || !channel) return Promise.resolve();
+  return new Promise(done => {
+    const timer = setTimeout(done, within);
+    channel.addEventListener("message", function heard(event) {
+      if (event.data?.type !== "audience") return;
+      clearTimeout(timer);
+      channel.removeEventListener("message", heard);
+      done();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 
 async function start() {
   const parameters = new URLSearchParams(location.search);
@@ -307,11 +590,13 @@ async function start() {
     return;
   }
 
-  const extension = /[.]([^.]+)$/.exec(filename)?.[1].toLowerCase() ?? "";
+  const extension = extensionOf(filename);
   const type = mimeTypes[extension] ?? "application/octet-stream";
   // A copy of our own, so the buttons keep working however the organizer tab
   // fares. Blob() copies, so the renderer may still claim the buffer below.
-  const ours = URL.createObjectURL(new Blob([data], { type }));
+  const file = new Blob([data], { type });
+  const ours = URL.createObjectURL(file);
+  talk = { file, name: filename, title };
   downloadLink.href = ours;
   downloadLink.download = filename || "presentation";
   downloadLink.hidden = false;
@@ -322,17 +607,11 @@ async function start() {
   }
 
   try {
-    if (extension === "pdf") {
-      const { openPdf } = await import("./deck-pdf.mjs");
-      deck = await openPdf(stage, data, updateCount);
-    } else {
-      const { openPowerPoint } = await import("./deck-pptx.mjs");
-      deck = await openPowerPoint(stage, data);
-    }
+    deck = await openDeck(stage, data, extension, changed);
   } catch {
     message(extension === "pdf"
-      ? "This PDF couldn\u2019t be opened here. Download it to open in another viewer."
-      : "This presentation couldn\u2019t be opened here. Download it to present in PowerPoint.");
+      ? "This PDF couldn’t be opened here. Download it to open in another viewer."
+      : "This presentation couldn’t be opened here. Download it to present in PowerPoint.");
     return;
   }
   // Outside the catch: a slip here is not the file failing to open.
@@ -343,6 +622,17 @@ async function start() {
     fillPicker();
     paintVisibleThumbs();
   }
+  // With an audience screen open, a talk starts in presenter view and takes
+  // the screen over: that is how one talk follows another in a room with a
+  // podium screen and a projector.
+  await audienceAnswer(400);
+  if (audiences.open) {
+    setPresenterView(true);
+    sendTalk();
+  }
 }
+
+// Without a way to reach another window there is no audience screen to drive.
+presenterButton.hidden = !channel;
 
 start();

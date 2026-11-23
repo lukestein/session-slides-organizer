@@ -3,6 +3,7 @@ import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
 import { readLooseSession, readSessionZip } from "./session-import.mjs";
 import { isManifestName, parseManifest } from "./session-manifest.mjs";
 import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
+import { openAudienceWindow, openChannel, trackAudiences } from "./audience-channel.mjs";
 import { findDuplicate, fingerprint } from "./file-identity.mjs";
 import { clearSession, loadSession, saveSession } from "./session-store.mjs";
 import { fetchGooglePdf, fetchGooglePreview, fetchLinkedFile, fetchSourceFile, googlePdfUrl, looksLikeDeckFile, NotADeckError, parseLink } from "./links.mjs";
@@ -136,6 +137,7 @@ function updateList() {
   googleCaveat.hidden = !slides.some(slide => slide.file && slide.link?.googleId);
   updateArchive();
   clearButton.hidden = slides.length === 0;
+  updateAudienceTools();
   slides.forEach((slide, index) => {
     slide.position.textContent = String(index + 1);
     updateDownload(slide, index);
@@ -1112,6 +1114,34 @@ window.addEventListener("pageshow", event => {
   requestAnimationFrame(() => {
     for (const slide of slides) slide.title.value = slide.friendlyName;
   });
+});
+
+// The audience screen, for a room whose projector is a second display rather
+// than a mirror of this one: a window to move there, after which every talk
+// opened from the list starts in presenter view on this screen and shows on
+// that one. See audience-channel.mjs. Nothing here changes what a row's
+// Open in browser link does; the presenter tab looks for the screen itself.
+const audienceTools = document.querySelector("#audience-tools");
+const audienceOpen = document.querySelector("#audience-open");
+const audienceState = document.querySelector("#audience-state");
+const audiences = trackAudiences(updateAudienceTools);
+const audienceChannel = openChannel(message => audiences.handle(message));
+audienceChannel?.postMessage({ type: "ping" });
+
+function updateAudienceTools() {
+  // Shown once there is something to present, or while a screen is open.
+  audienceTools.hidden = !audienceChannel || !(audiences.open || slides.some(slide => slide.presentable));
+  audienceOpen.hidden = audiences.open;
+  audienceState.textContent = audiences.open
+    ? "Audience screen open: talks start in presenter view."
+    : "";
+}
+
+audienceOpen.addEventListener("click", () => {
+  if (audiences.open) return;
+  if (!openAudienceWindow()) {
+    showProblem("The browser blocked the audience screen. Allow pop-ups for this site and try again.");
+  }
 });
 
 // Clear list asks first, in a dialog of its own rather than confirm(), so it

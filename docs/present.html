@@ -30,6 +30,8 @@
         title="Open the original PDF in the browser's own viewer, for search and printing"
         hidden>Open original</a>
       <a class="deck-button" id="deck-download" download hidden>Download</a>
+      <button type="button" class="deck-button" id="deck-presenter"
+        title="Notes, the next slide and a timer here, with the slides on a second screen">Presenter view</button>
       <button type="button" class="deck-button" id="deck-slides"
         title="Show all slides (G). B blanks the screen black, W white.">All slides</button>
       <button type="button" class="deck-button" id="deck-fullscreen">Full screen</button>
@@ -37,6 +39,29 @@
     <div class="deck-stage" id="deck-stage">
       <p class="deck-message">Opening presentation…</p>
     </div>
+    <aside class="deck-side" id="deck-side" aria-label="Presenter view" hidden>
+      <div class="deck-clock">
+        <span class="deck-elapsed" id="deck-elapsed" title="Time since presenter view started">0:00</span>
+        <button type="button" class="deck-button deck-timer-close" id="deck-timer-close"
+          aria-label="Hide the timer" title="Hide the timer">×</button>
+        <button type="button" class="deck-button" id="deck-restart" title="Start the timer again">Restart</button>
+        <button type="button" class="deck-button" id="deck-timer-show" hidden>Show timer</button>
+        <time class="deck-time" id="deck-time"></time>
+      </div>
+      <section class="deck-upnext" aria-labelledby="deck-upnext-heading">
+        <h2 id="deck-upnext-heading">Next</h2>
+        <p class="deck-builds" id="deck-builds" hidden></p>
+        <div class="deck-upnext-slide" id="deck-upnext"></div>
+      </section>
+      <section class="deck-notes" id="deck-notes-section" aria-labelledby="deck-notes-heading" hidden>
+        <h2 id="deck-notes-heading">Notes</h2>
+        <div class="deck-notes-text" id="deck-notes"></div>
+      </section>
+      <div class="deck-screen" id="deck-screen">
+        <p id="deck-screen-status" role="status"></p>
+        <button type="button" class="deck-button" id="deck-screen-action" hidden></button>
+      </div>
+    </aside>
     <button type="button" class="deck-edge deck-prev" id="deck-prev" aria-label="Previous slide"></button>
     <button type="button" class="deck-edge deck-next" id="deck-next" aria-label="Next slide"></button>
     <div class="deck-blank" id="deck-blank" hidden></div>
@@ -44,12 +69,13 @@
 
     <div class="deck-help" id="deck-help" role="dialog" aria-label="Keyboard shortcuts" hidden>
       <dl class="deck-help-list">
+        <dt>Click slide</dt><dd>Next build or slide; leftmost eighth goes back</dd>
         <dt><kbd>→</kbd><kbd>↓</kbd><kbd>Space</kbd></dt><dd>Next slide or build</dd>
         <dt><kbd>←</kbd><kbd>↑</kbd></dt><dd>Previous</dd>
         <dt><kbd>Page Up</kbd><kbd>Page Down</kbd></dt><dd>Previous / next</dd>
         <dt><kbd>Home</kbd><kbd>End</kbd></dt><dd>First / last slide</dd>
         <dt><kbd>B</kbd><kbd>W</kbd></dt><dd>Blank the screen black or white</dd>
-        <dt><kbd>G</kbd></dt><dd>Show all slides</dd>
+        <dt class="single-only"><kbd>G</kbd></dt><dd class="single-only">Show all slides</dd>
         <dt><kbd>?</kbd></dt><dd>This guide</dd>
         <dt><kbd>Esc</kbd></dt><dd>Close this, or the slide picker</dd>
       </dl>

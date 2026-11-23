@@ -16,6 +16,49 @@ Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under
 
 Run the tests with `node --test tests/*.test.mjs`. After adding, removing or renaming anything in `docs/`, run `node scripts/offline-files.mjs`; a test fails until you do.
 
+### Presenter browser regression tests
+
+`tests/browser/presenter.mjs` runs the organizer, presenter and audience screen in an isolated
+browser profile against the working tree. It starts its own HTTP server and stops it for the
+offline checks; no other local server or real presentation files are needed. The generated
+fixtures include a 60-slide 4:3 PowerPoint with three click-by-click builds per slide, long speaker
+notes and internal slide links, plus a three-page 4:3 PDF. Playwright is a development tool only;
+it adds nothing to the deployed site.
+
+With Google Chrome installed, one way to run it without adding dependencies to this repository:
+
+```sh
+npm install --prefix /tmp/slideorg-browser-tests playwright
+PLAYWRIGHT_MODULE=/tmp/slideorg-browser-tests/node_modules/playwright/index.mjs node tests/browser/presenter.mjs
+```
+
+For the other engines, install Playwright's browser builds, then select one:
+
+```sh
+/tmp/slideorg-browser-tests/node_modules/.bin/playwright install firefox webkit
+BROWSER=firefox PLAYWRIGHT_MODULE=/tmp/slideorg-browser-tests/node_modules/playwright/index.mjs node tests/browser/presenter.mjs
+BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/slideorg-browser-tests/node_modules/playwright/index.mjs node tests/browser/presenter.mjs
+```
+
+Set `TEST_ARTIFACTS=/tmp/slideorg-shots` to save screenshots of presenter view and the fullscreen
+fallback message for visual inspection.
+
+The test checks existing-talk instructions and persistent waiting-screen instructions and branding in fullscreen, rendered build visibility as well as synchronization messages, audience-side keys,
+center and left-edge slide clicks in all views, PDF and PowerPoint links that keep their own clicks,
+blank/resume, audience reload, talk takeover, closing the active presenter, reclaiming an older
+talk, long notes, the thumbnail strip, internal PowerPoint links, PDF fitting after fullscreen exit
+and resizing, fullscreen refusal feedback, closing the organizer and audience, single-screen
+controls, and offline audience opening/reloading. CSP stays enforced. The offline check stops the
+server instead of using Playwright's offline emulation: WebKit 18.2's emulation stranded a new
+popup at `about:blank`, whereas a real connection failure passed.
+If a headless popup refuses fullscreen, the test checks its fallback instructions and runs the
+fullscreen guidance checks in a separate browser window instead; it logs that substitution.
+
+These checks do not replace Safari itself or a real two-display machine. Test display permission
+prompts (including leaving the prompt open), fullscreen placement on the projector, and a physical
+clicker after giving the audience window focus on the room computer. The generated deck tests
+entrance builds; complicated animations and rendering fidelity still need representative decks.
+
 The service worker (see **Working offline**) is network first, so it does not hold back local edits, but the browser's HTTP cache may: reload with the cache bypassed (Shift-reload), or tick DevTools → Network → **Disable cache**. DevTools → Application → Service workers has **Unregister** if you want the worker gone.
 
 ## Project layout
@@ -26,8 +69,9 @@ The service worker (see **Working offline**) is network first, so it does not ho
 | `docs/app.mjs` | The list: adding, renaming, reordering, removing, downloading |
 | `docs/previews.mjs` | First-page thumbnails, slide counts and sizes |
 | `docs/deck-viewer.mjs` | Which formats can be presented, and the blob-URL handoff to the presenter tab |
-| `docs/present.html`, `docs/present.mjs` | The presenter shell: bar, keys, blanking, slide picker, full screen |
-| `docs/deck-pdf.mjs`, `docs/deck-pptx.mjs` | One rendering engine per format, behind the presenter |
+| `docs/present.html`, `docs/present.mjs` | The presenter shell: bar, keys, blanking, slide picker, full screen, and presenter view |
+| `docs/audience.html`, `docs/audience.mjs`, `docs/audience-channel.mjs` | The audience screen for presenter view, and the messages the windows pass each other |
+| `docs/deck-open.mjs`, `docs/deck-pdf.mjs`, `docs/deck-pptx.mjs` | Opening a file with the right engine, and one rendering engine per format, behind the presenter and the audience screen |
 | `docs/session-zip.mjs`, `docs/session-manifest.mjs`, `docs/session-import.mjs`, `docs/file-identity.mjs` | Writing a session ZIP and its `session.md`, and reading one back without listing a talk twice |
 | `docs/session-store.mjs` | Keeping the list, files included, in the browser's IndexedDB so it survives a refresh or a closed tab |
 | `docs/sw.js`, `docs/offline-files.json` | The service worker that keeps a copy of the site for offline use, and the list of files it keeps |
@@ -122,8 +166,10 @@ The keys are in the table under **Presenter keyboard shortcuts** in the README. 
 a page at a time; for a deck they play the next click-by-click build before moving on, as
 PowerPoint does.
 
-Clicking the outer eighth of either side moves a slide as well, except where a link sits there:
-a link takes its own click, so one at the very edge of a page is still reachable. Coming back
+Clicking the current slide advances a build or slide; its leftmost eighth goes back. Both windows
+use `moveForClick()` in `deck-open.mjs`, measured from the rendered page so letterboxing does not
+displace the backward zone. Links and media controls take their own clicks, including PowerPoint's
+SVG slide links. The next-slide preview and other page controls do not advance. Coming back
 from a blank screen returns to the slide that was up rather than moving on from it, so a key
 pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
 slide also lifts the picker into view, and it withdraws when the pointer leaves; opening it with
@@ -153,6 +199,43 @@ run per turn of one to four frames — brief, but a white flash in a dark room. 
 hit the same flash in its issue #28; its `src/renderer/src/pdf.ts` is worth re-reading if page
 turns ever need more work than this. PowerPoint needs none of it — web-ppt already builds each
 slide detached and swaps it in, which is also how it does transitions.
+
+### Presenter view and the audience screen
+
+For a room whose projector is a second display. The README's **Presenter view** section has what
+it does; this is how.
+
+- **Two renderers, one position.** The presenter tab and the audience screen (`audience.html`, a
+  popup window) each render the file themselves, so links work in both and a clicker pointed at
+  either moves the talk. What passes between them is the file once, as a `Blob` (which crosses a
+  `BroadcastChannel` without being copied), and then only `{index, step, blank}`. `step` is the
+  number of click-by-click builds played on the slide; every engine has `step`, `steps` and
+  `show(index, step)` for this, described at the top of `deck-open.mjs`. In a PowerPoint deck a
+  single step forward plays its animation on the other window; any other jump settles straight
+  into place.
+- **No echoes.** A move applied from the other window is applied with a flag set, so the engine's
+  change callback does not send it back. Each move also carries a `seq`, and a window ignores any
+  move not newer than the last it saw, so a late message cannot pull a talk backwards.
+- **Who is on screen.** The newest `present` message wins: opening the next talk puts it up. Each
+  audience screen announces whose talk it shows, and the presenter tabs, and the organizer,
+  keep track (`trackAudiences()`). A presenter tab that loads while an audience screen is open
+  starts in presenter view and takes the screen; that is the whole of the session workflow, and
+  the organizer's links are unchanged. A tab that opened an audience screen, or whose talk was
+  up before the screen reloaded, claims it again when the screen says it is waiting.
+- **Noticing a closed window.** Every presenter tab and audience screen holds a Web Lock named
+  after its own id for its whole life, and the others ask for that lock to learn when it has
+  gone. Messages sent from `pagehide` are sent too, but were not delivered reliably when a tab
+  closed during testing, and a crashed window sends nothing; a lock is always released. An
+  audience screen announces itself only once it holds its lock, so a listener cannot take the
+  lock first and decide the screen has already closed.
+- **Full screen on the other display** uses the Window Management API (`getScreenDetails()` and
+  `requestFullscreen({ screen })`), in Chromium only, shown only when `screen.isExtended`. It asks
+  for permission once. It has not yet been tried on a real two-display machine; the plain
+  **Full screen** button is the fallback and always works.
+- A popup opened from the presenter must come straight from the click, so presenter tabs and the
+  organizer track open audience screens continuously rather than asking at click time.
+- The embedded browser used during development opens popups in the same tab and does not repaint
+  background tabs, so test with the audience screen and presenter in separate windows.
 
 ### Format support in detail
 
@@ -469,6 +552,10 @@ source. This edit introduces the site to a first-time audience and has no audio.
   the whole site would have added about 7 MB to every ZIP, and a page opened from `file://` cannot
   load ES modules in Chrome, so it would not have run from the extracted folder anyway. See
   **Session manifest and import rules** above.
+- [x] Offer a presenter view for rooms with a separate projector, with an audience screen that
+  stays open from one talk to the next. See **Presenter view and the audience screen** above.
+- [ ] Try **Full screen on the other display** on a podium computer with a real second display,
+  and the whole presenter view with a clicker there.
 - [ ] Consider a **Next talk** button in the presenter, in the top bar where the full-screen chrome
   hides it, moving to the next presentation in the session in the same tab and skipping anything
   the browser cannot render. The presenter is deliberately self-contained today: it reads the file

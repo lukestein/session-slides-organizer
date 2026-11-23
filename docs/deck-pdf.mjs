@@ -164,6 +164,11 @@ export async function openPdf(stage, data, onPageChange) {
   const deck = {
     get count() { return pdf.numPages; },
     get index() { return index; },
+    // A PDF has no builds: every page arrives finished.
+    step: 0,
+    steps: 0,
+    show(target) { deck.goTo(target); },
+    notes() { return ""; },
     goTo(target) {
       const next = Math.min(Math.max(target, 0), pdf.numPages - 1);
       if (next === index) return;
@@ -174,10 +179,17 @@ export async function openPdf(stage, data, onPageChange) {
     next() { deck.goTo(index + 1); },
     prev() { deck.goTo(index - 1); },
     resize() { redraw(); },
+    destroy() {
+      task?.cancel();
+      loading.destroy();
+    },
     async renderThumb(target, thumb) {
       const page = await pdf.getPage(target + 1);
       const natural = page.getViewport({ scale: 1 });
-      const width = thumb.clientWidth || 144;
+      // Sharp on a high-density screen too: the presenter view's next-slide
+      // preview is large enough for the difference to show.
+      const ratio = window.devicePixelRatio || 1;
+      const width = (thumb.clientWidth || 144) * ratio;
       const viewport = page.getViewport({ scale: width / natural.width });
       const sheet = document.createElement("canvas");
       sheet.width = Math.ceil(viewport.width);
