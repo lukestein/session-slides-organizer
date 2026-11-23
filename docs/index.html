@@ -41,7 +41,7 @@
       </div>
       <h1>Slide Organizer</h1>
       <p class="tagline">Every talk, in order, on the room computer.</p>
-      <p class="benefits">Free<span aria-hidden="true"> · </span><span class="sr-only">, </span>Open source<span aria-hidden="true"> · </span><span class="sr-only">, </span>Private: your files never leave this machine</p>
+      <p class="benefits">Free<span aria-hidden="true"> · </span><span class="sr-only">, </span>Open source<span aria-hidden="true"> · </span><span class="sr-only">, </span>Private: your files never leave this machine<span aria-hidden="true"> · </span><span class="sr-only">. </span><button type="button" class="demo-open" id="demo-open" aria-haspopup="dialog"><svg class="demo-icon" viewBox="0 0 24 16" width="18" height="12" aria-hidden="true" focusable="false"><rect x="1" y="2" width="15" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path fill="currentColor" d="M17 6.5 23 3v10l-6-3.5z"/></svg>Demo (60 sec.)</button></p>
       <span class="site-address" aria-label="slideorg.org">slide<b>org</b><i>.org</i></span>
     </div>
   </header>
@@ -102,17 +102,24 @@
       </div>
     </dialog>
 
+    <!-- The demo video loads only when someone asks for it: the <video> has no
+         src until the Demo button sets one, and the service worker leaves video
+         alone, so a normal visit and the offline copy never carry its 5 MB. -->
+    <dialog class="demo-dialog" id="demo-dialog" aria-label="Slide Organizer demo video">
+      <video id="demo-video" controls playsinline muted preload="none" width="1920" height="1080"></video>
+      <form method="dialog"><button class="demo-close" aria-label="Close demo">×</button></form>
+    </dialog>
+
     <ol class="how-it-works" aria-label="How it works">
-      <li><b>Add each talk.</b> Drop in slides from a USB stick, email, Dropbox and so on, or paste a
+      <li><b>Add each talk.</b> Drop in slides from a USB stick, email, Dropbox, etc., or paste a
         link to an online presentation, such as Google Slides.</li>
       <li><b>Put them in order.</b> Drag rows into speaking order and give each a clean title.</li>
-      <li><b>Present.</b> <em>Open in browser</em> shows each presentation full screen, one slide at a
-        time, with clicker support. Press <kbd>?</kbd> there for shortcuts. With a projector separate
-        from this screen, <em>Open audience screen</em> gives you a window for it, and talks open in
-        presenter view, with the next slide, notes and a timer.</li>
+      <li><b>Present.</b> <em>Open in browser</em> shows a presentation full screen, with a pop-up
+        slide picker and clicker support. <em>Presenter view</em> adds a separate audience output if
+        you have multiple screens. <kbd>?</kbd> shows keyboard shortcuts.</li>
       <li><b>Keep the session.</b> Download a ZIP of all the presentation files, numbered in order.
-        Use it on any computer, or drop it back in here to pick up where you left off. The list also
-        stays in this browser until you clear it.</li>
+        Use it on any computer, or drop it back into slideorg.org to pick up where you left off. The
+        list should also stay in this browser until you clear it.</li>
     </ol>
 
     <p id="error" class="error" role="alert" hidden></p>
@@ -134,10 +141,12 @@
   <footer class="shell"><span class="site-address">slide<b>org</b><i>.org</i></span> · Made with love and AI by <a href="https://lukestein.com" target="_blank"
     rel="noopener">Luke Stein</a>.<span id="build-stamp" hidden> Updated <time id="build-date"></time>.</span>
     <a href="https://github.com/lukestein/session-slides-organizer" target="_blank"
-      rel="noopener">Source code</a>, under the MIT license. Built on
+      rel="noopener">Source code <svg class="github-mark" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>, under the MIT license. Built on
     <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener">PDF.js</a>,
-    <a href="https://github.com/unStone/web-ppt" target="_blank" rel="noopener">web-ppt</a> and
-    <a href="https://github.com/101arrowz/fflate" target="_blank" rel="noopener">fflate</a>.</footer>
+    <a href="https://github.com/unStone/web-ppt" target="_blank" rel="noopener">web-ppt</a>, and
+    <a href="https://github.com/101arrowz/fflate" target="_blank" rel="noopener">fflate</a>, and inspired by
+    <a href="https://stoatworks-labs.com/" target="_blank" rel="noopener">Stoatworks Labs</a>’
+    <a href="https://stoatworks-labs.com/software/pdf-presenter/" target="_blank" rel="noopener">PDF Presenter</a>.</footer>
 
   <template id="slide-row">
     <li class="slide">

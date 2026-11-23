@@ -1144,6 +1144,22 @@ audienceOpen.addEventListener("click", () => {
   }
 });
 
+// The demo video. Its src is set on the first click, never in the HTML, so
+// nobody who does not ask for it downloads it.
+const demoDialog = document.querySelector("#demo-dialog");
+const demoVideo = document.querySelector("#demo-video");
+document.querySelector("#demo-open").addEventListener("click", () => {
+  if (!demoVideo.getAttribute("src")) demoVideo.src = "./media/demo.mp4";
+  demoVideo.currentTime = 0;
+  demoDialog.showModal();
+  demoVideo.play().catch(() => {});
+});
+demoDialog.addEventListener("close", () => demoVideo.pause());
+// A click on the backdrop, outside the video, closes it.
+demoDialog.addEventListener("click", event => {
+  if (event.target === demoDialog) demoDialog.close();
+});
+
 // Clear list asks first, in a dialog of its own rather than confirm(), so it
 // can offer the ZIP download right there and OK cannot be read as "download".
 const clearDownload = document.querySelector("#clear-download");

@@ -190,6 +190,7 @@ h1, h2, p { margin: 0; }
 .open-pdf b, .download b { font-weight: 700; margin-left: .1em; }
 footer { padding-block: 1.35rem 2rem; color: var(--muted); font-size: .8rem; }
 footer a { color: var(--accent); text-underline-offset: .15em; }
+footer .github-mark { width: 1em; height: 1em; vertical-align: -.125em; }
 
 .drop-zone {
   min-height: 5rem;
@@ -331,6 +332,44 @@ footer a { color: var(--accent); text-underline-offset: .15em; }
 .confirm-dialog p { margin-top: .6rem; color: var(--muted); font-size: .9rem; line-height: 1.5; }
 .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; margin-top: 1.25rem; }
 .dialog-actions .button:disabled { cursor: default; opacity: .65; }
+.demo-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+}
+.demo-icon { width: 1.35em; height: .9em; margin-right: .3em; vertical-align: -.1em; }
+.demo-dialog {
+  width: min(100% - 2rem, 64rem);
+  max-height: calc(100% - 2rem);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: .75rem;
+  background: #000;
+  overflow: visible;
+  box-shadow: 0 1.2rem 3rem #12362566;
+}
+.demo-dialog::backdrop { background: #0e1c16cc; }
+.demo-dialog video { display: block; width: 100%; height: auto; max-height: calc(100vh - 2rem); border-radius: .75rem; }
+.demo-close {
+  position: absolute;
+  top: -.9rem;
+  right: -.9rem;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
 .button.danger { background: #9d2544; border-color: #9d2544; color: #fff; }
 .button.danger:hover { background: #7f1d37; }
 
