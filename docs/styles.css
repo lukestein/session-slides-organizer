@@ -190,7 +190,7 @@ h1, h2, p { margin: 0; }
 .open-pdf b, .download b { font-weight: 700; margin-left: .1em; }
 footer { padding-block: 1.35rem 2rem; color: var(--muted); font-size: .8rem; }
 footer a { color: var(--accent); text-underline-offset: .15em; }
-footer .github-mark { width: 1em; height: 1em; vertical-align: -.125em; }
+footer .github-mark { width: 1em; height: 1em; margin-left: .3em; vertical-align: -.125em; }
 
 .drop-zone {
   min-height: 5rem;
