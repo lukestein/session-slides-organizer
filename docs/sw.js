@@ -129,6 +129,9 @@ self.addEventListener("fetch", event => {
   if (request.method !== "GET" || !request.url.startsWith(scope)) return;
   // Partial requests (video seeking, say) are left to the browser.
   if (request.headers.has("range")) return;
+  // Nor is the demo video kept: it is fetched only for someone who asks to
+  // watch it, and would otherwise sit in the offline copy for good.
+  if (request.destination === "video" || new URL(request.url).pathname.endsWith(".mp4")) return;
   event.respondWith(respond(event));
   if (request.mode === "navigate") event.waitUntil(refreshIfDue().catch(() => {}));
 });
