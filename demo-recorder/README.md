@@ -44,6 +44,7 @@ it can be committed; see the allow-list above.
 node demo.mjs             # dry run, no video, prints what each beat did
 node demo.mjs --video     # writes demo.mp4
 node demo.mjs --beats=drop1,drop3,reorder   # just these beats
+node --test recorder.test.mjs             # capture pairing, cuts and safe tab switching
 ```
 
 `node screenshots.mjs` takes the still screenshots the top-level README embeds (the list, the
@@ -59,7 +60,7 @@ overrides where the decks come from (`../../sample slides`).
 ## Branded social introduction
 
 The standalone introduction for a first-time audience is `../media/social-demo.mp4`:
-47 seconds, 1920×1080, H.264 at 30 fps, intentionally silent with readable feature
+59.9 seconds, 1920×1080, H.264 at 30 fps, intentionally silent with readable feature
 captions. The companion `social-cover.png` is the upload thumbnail, and
 `brand-animation.mp4` is a six-second loop of the three slides becoming the stack
 and opening out again. All use the site's Instrument Sans and green palette.
@@ -76,14 +77,26 @@ HEADLESS=1 node demo-recorder/social.mjs
 ordering the talks, and omits the shortcut dialog while retaining visible clicks
 through PDF links. The four sample decks and actual app interactions are the same as the original take. `take.json`
 records beat timecodes after navigation waits have been cut, so the edit follows
-the new recording rather than hard-coded source timestamps. The old recorder
+the new recording rather than hard-coded source timestamps. The social take opens
+**Presenter view** straight from the PowerPoint cover slide. Both tabs are captured in the same recorder iteration, with shared timestamps and loading
+cuts; `audience.mp4` is the synchronized companion to `demo.mp4`. The edit
+animates from one full-width recording into two complete, labeled frames,
+shows quick synchronized keyboard advances, a 1.2-second black-screen hold with B,
+and the timer’s reset and hide controls. Closing the PowerPoint returns the left
+frame to the queue while the same audience window shows its branded waiting
+screen. Opening a PDF feeds it into that existing window; the recorder checks
+the window id, and the edit stays split throughout the handoff. It then expands
+back to one frame before ZIP download and restore. No tab content
+is cropped. `presenter_open` and `presenter_close` in `take.json` anchor the
+transitions to the actual clicks. The old recorder
 without `--social` still produces the original walkthrough.
 
 The edit starts with a complete, readable cover on frame zero: “Every talk.
 One place.”, a description, and the domain. The three slides become the stack
-within the three-second opening. Five captioned chapters follow (5 / 5 / 8 /
-15 / 8 seconds): gathering files, Google Slides, ordering, presenting, and saving.
-The three-second closing card contains only the icon, address, and
+within the three-second opening. Six captioned chapters follow (4 / 4 / 5 /
+11 / 22 / 8 seconds): gathering files, Google Slides, ordering, presenting,
+presenter view with an audience screen, and saving.
+The 2.9-second closing card contains only the icon, address, and
 “Free · Open source · Private.” Captions sit above the complete browser frame.
 `social.mjs` draws the animation on a canvas with deterministic frame times,
 using the site's tile-to-stack geometry. It needs no npm packages. Adjust its
@@ -91,12 +104,16 @@ chapter copy and durations there; rebuild to apply them. Intermediate frames,
 chapter cards, clips and the JSON edit report live in ignored `social-build/`.
 Google image loading is cut until the preview has actually decoded; PDF loading
 and settling are cut too, leaving only a brief pause after each result. All five
-titles are edited. In the PDF presenter, the pointer visibly glides to the
-regression-table link and back, with a brief ring marking each click.
-For an inline player in the top-level README, upload `media/social-demo.mp4` by
+titles are edited, with faster typing after the first. In the PDF presenter,
+a brief cover-slide pause and three keyboard advances precede the picker jump to
+slide 5, followed by the regression-table link and a brisker click back. Rings mark button and link clicks,
+not ordinary slide advances.
+The top-level README embeds the video through an uploaded GitHub attachment.
+After each new render, upload `media/social-demo.mp4` by
 dragging it into a GitHub comment box, then copy the generated `user-attachments`
-URL to its own line in the README. The comment need not be posted. Each new take
-needs a new upload and URL. The clickable `media/social-cover.png` preview linking
+URL to its own line in the README. Use a public repository and check the URL
+while signed out before publishing; an attachment that requires your sign-in
+will not play for other visitors. Each new take needs a new upload and URL. The clickable `media/social-cover.png` preview linking
 to `media/social-demo.mp4?raw=true` is a fallback, not an inline player.
 The original `media/demo.mp4` remains a separate output.
 
@@ -112,7 +129,7 @@ One beat per block in `demo.mjs`, runnable alone with `--beats=`:
 | `reorder` | the PowerPoint is dragged from third to second, so the list reads paper, discussion, paper, discussion |
 | `rename` | one click into the first title, then **Tab** along the row — the app moves focus and selects the next title itself — retitling all five talks to Paper A / Discussion A / Paper B / Discussion B / Closing talk, original filenames still visible underneath |
 | `pdf` | **Open in browser** on a PDF. The **?** shortcut card over the cover slide, then **G** and a click straight to slide 5, its link out to the regression table on 15 and the link back. The pointer is parked against the right edge and hidden while slides are up — visible only for the clicks |
-| `pptx` | the same presenter on a PowerPoint, briefly: one click forward |
+| `pptx` | open PowerPoint and **Presenter view**, advance with the keyboard, blank/resume with **B**, reset and hide the timer, then close the talk and open a PDF from the queue into the same audience window, all while split |
 | `getpdf` | **Get PDF** on the Google row, which becomes an ordinary PDF row with its † and a link back to Google Slides; the download is cut |
 | `zip` | the session ZIP renamed to "Corporate finance 11am" and downloaded |
 | `import` | a fresh, empty organizer in a new tab, and that ZIP drifting back in from off-frame: order, titles and session name return |
@@ -123,8 +140,9 @@ first slide are all on screen. The `link` and `getpdf` beats need the network.
 ### Cutting out the waits
 
 `rec.cut(work)` runs `work` and drops whatever was captured meanwhile, so waiting on Google or on a
-new tab reads as a straight cut, and the frames after it move up in time. The video runs about
-48 seconds; the take itself, about 52.
+new tab reads as a straight cut, and the frames after it move up in time. The original
+walkthrough runs about 48 seconds; the social edit has its own fixed 59.9-second
+chapter timeline.
 
 ## How it works
 
@@ -139,6 +157,14 @@ new tab reads as a straight cut, and the frames after it move up in time. The vi
 - `demo.mjs` — the beat list above.
 
 ## Things already learned the hard way
+
+- **Capture the viewport, not a scaled clip.** A scaled clip during a popup resize
+  can tile the old compositor surface into the new picture. Finish popup setup,
+  calibration and paint before switching the recorder to it; cut those setup
+  frames. Capture with `fromSurface: true, captureBeyondViewport: false`. Every
+  captured viewport must stay 16:9, or the take fails. The encoder scales the
+  complete frames to 1920×1080; Chrome can capture a popup at CSS-pixel density
+  even when the organizer is captured at its emulated device-pixel density.
 
 - **The emulated viewport must equal the real window's content box.** If it does
   not, Chrome scales the page to fit, the window visibly flickers, and injected

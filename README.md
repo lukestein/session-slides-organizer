@@ -2,7 +2,7 @@
 
 **Hosted at <https://slideorg.org/>.** Open it in your browser and start dropping in slides. There is nothing to install and no account to make, and your files are read on your own computer, not uploaded anywhere.
 
-https://github.com/user-attachments/assets/15d178e3-83ec-405c-8566-4fd153f58c40
+https://github.com/user-attachments/assets/df9cccc2-a709-43ba-91cb-7482fa600cf5
 
 A small web tool for whoever runs a conference session, a seminar, or a panel. When several speakers share one room computer, the usual scramble is a pile of files in Downloads, a different app for each format, and a laptop-swap between every talk. Here you put all the presentations in one list, put them in speaking order, and open each one at its turn. PDFs, PowerPoint and Keynote files all go in the same list.
 

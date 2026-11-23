@@ -1,7 +1,7 @@
 import { sleep } from "./cdp.mjs";
 import { DIR, VIEW, startSite, launch, page, KEYS, Recorder, fitToWindow } from "./driver.mjs";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readdirSync, writeFileSync, rmSync } from "node:fs";
 
 const PORT = 8099, SITE = DIR + "serve";
 const ONE = "barnes-stein.pdf";
@@ -22,6 +22,10 @@ const log = (...a) => console.log(new Date().toISOString().slice(14, 22), ...a);
 const site = await startSite(PORT, SITE);
 const { chrome, cdp, wsUrl } = await launch({ downloads: DIR + "downloads" });
 
+try {
+// Chrome otherwise saves a second take as "(1).zip", and restore could pick
+// yesterday’s archive. Only remove this recorder-owned generated download.
+rmSync(DIR + "downloads/" + SESSION + ".zip", { force: true });
 const attached = [];
 cdp.on("Target.attachedToTarget", ({ sessionId, targetInfo }) => {
   if (targetInfo.type === "page") attached.push({ sessionId, targetInfo });
@@ -29,8 +33,18 @@ cdp.on("Target.attachedToTarget", ({ sessionId, targetInfo }) => {
 async function waitForPage(match, timeout = 20000) {
   const stop = Date.now() + timeout;
   while (Date.now() < stop) {
-    const hit = attached.find(p => p.targetInfo.url.includes(match));
-    if (hit) return hit;
+    // Popup targets may first attach at about:blank, and popups opened by a
+    // presenter are one level deeper than the organizer’s tabs. Read their
+    // current URLs rather than relying on the initial attachment event.
+    const { targetInfos } = await cdp.send('Target.getTargets');
+    const targetInfo = targetInfos.find(p => p.type === 'page' && p.url.includes(match));
+    if (targetInfo) {
+      const hit = attached.find(p => p.targetInfo.targetId === targetInfo.targetId);
+      if (hit) return { ...hit, targetInfo };
+      const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: targetInfo.targetId, flatten: true });
+      await cdp.send('Runtime.runIfWaitingForDebugger', {}, sessionId);
+      return { sessionId, targetInfo };
+    }
     await sleep(100);
   }
   throw new Error("no page matching " + match);
@@ -51,7 +65,7 @@ console.log('calibration:', JSON.stringify(await list.calibrate()));
 const names = await list.eval(`__demo.load(${JSON.stringify(ALL)})`);
 log("files loaded:", names.length);
 
-const rec = new Recorder(wsUrl, DIR + "frames");
+const rec = new Recorder(wsUrl, DIR + "frames", { paired: social });
 await rec.init();
 await rec.focus(targetId);
 rec.start();
@@ -154,11 +168,11 @@ if (want("rename")) {
   await sleep(190);
   const titles = TITLES.slice(0, (await list.eval("__demo.rows()")).length);
   for (const [i, text] of titles.entries()) {
-    await list.type(text, 30);
+    await list.type(text, social && i > 0 ? 5 : 30);
     if (i === titles.length - 1) break;
-    await sleep(120);
+    await sleep(social ? 40 : 120);
     await list.key("Tab", KEYS.Tab);
-    await sleep(150);
+    await sleep(social ? 40 : 150);
   }
   await sleep(170);
   await list.key("Enter", KEYS.Enter);
@@ -179,43 +193,48 @@ async function openPresenter(rowSelector, label) {
   await sleep(190);
   const before = attached.length;
   await list.click(open.x, open.y);
-  const deadline = Date.now() + 15000;
-  while (attached.length === before) {
-    if (Date.now() > deadline) throw new Error(`${label}: clicking "Open in browser" opened no tab`);
-    await sleep(60);
-  }
-  const entry = attached[attached.length - 1];
-  const deck = page(cdp, entry.sessionId);
-  await cdp.send("Target.activateTarget", { targetId: entry.targetInfo.targetId });
-  await rec.focus(entry.targetInfo.targetId);
-  await deck.inject();
-  await deck.until("!!document.querySelector('#deck-count')?.textContent.trim()", 40000);
-  // The popup does not reliably inherit the override; check rather than assume.
-  await deck.call("Emulation.setDeviceMetricsOverride",
-    { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: false });
-  await sleep(250);
-  // Calibrate AFTER that, never before: applying the override can change the
-  // viewport, and a mapping measured beforehand is then wrong by exactly that
-  // factor. Every later click lands somewhere else -- which once put a click
-  // meant for a slide link onto a picker thumbnail instead.
-  await deck.calibrate();
-  const seen = await deck.eval("[innerWidth, innerHeight]");
-  console.log(`  ${label} viewport: ${seen} (want ${[VIEW.width, VIEW.height]})`,
-    seen[1] === VIEW.height ? "OK" : "*** MISMATCH: frame will be clipped ***");
-  console.log(`  ${label} rendered: ${await deck.eval("document.querySelector('#deck-count').textContent")}`);
-  // Park the pointer against the right edge and hide it: nobody wants a cursor
-  // sitting on a slide. .deck-edge reacts to focus-visible, not hover.
-  const park = [VIEW.width - 8, Math.round(VIEW.height * 0.4)];
-  await deck.move(park[0], park[1]);
-  await deck.eval("__demo.show(false)");
-  await sleep(450);
-  return { deck, park, entry };
+  return rec.cut(async () => {
+    const deadline = Date.now() + 15000;
+    while (attached.length === before) {
+      if (Date.now() > deadline) throw new Error(`${label}: clicking "Open in browser" opened no tab`);
+      await sleep(60);
+    }
+    const entry = attached[attached.length - 1];
+    const deck = page(cdp, entry.sessionId);
+    await cdp.send("Target.activateTarget", { targetId: entry.targetInfo.targetId });
+    await deck.inject();
+    await deck.until("!!document.querySelector('#deck-count')?.textContent.trim()", 40000);
+    // The popup does not reliably inherit the override; check rather than assume.
+    await deck.call("Emulation.setDeviceMetricsOverride",
+      { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: false });
+    await sleep(250);
+    // Calibrate AFTER that, never before: applying the override can change the
+    // viewport, and a mapping measured beforehand is then wrong by exactly that
+    // factor. Every later click lands somewhere else -- which once put a click
+    // meant for a slide link onto a picker thumbnail instead.
+    await deck.calibrate();
+    const seen = await deck.eval("[innerWidth, innerHeight]");
+    console.log(`  ${label} viewport: ${seen} (want ${[VIEW.width, VIEW.height]})`,
+      seen[1] === VIEW.height ? "OK" : "*** MISMATCH: frame will be clipped ***");
+    console.log(`  ${label} rendered: ${await deck.eval("document.querySelector('#deck-count').textContent")}`);
+    // Park the pointer against the right edge and hide it: nobody wants a cursor
+    // sitting on a slide. .deck-edge reacts to focus-visible, not hover.
+    const park = [VIEW.width - 8, Math.round(VIEW.height * 0.4)];
+    await deck.move(park[0], park[1]);
+    await deck.eval("__demo.show(false)");
+    await sleep(450);
+    // Only hand capture over once the popup has its final viewport and paint.
+    await deck.eval("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await rec.focus(entry.targetInfo.targetId);
+    return { deck, park, entry };
+  }, 0);
 }
 
 async function closePresenter(entry) {
   await sleep(300);
-  await cdp.send("Target.closeTarget", { targetId: entry.targetInfo.targetId });
+  // Finish the current screenshot and switch away before closing its target.
   await rec.focus(targetId);
+  await cdp.send("Target.closeTarget", { targetId: entry.targetInfo.targetId });
   await cdp.send("Target.activateTarget", { targetId });
   await sleep(500);
 }
@@ -257,6 +276,26 @@ async function jumpVia(deck, park, pick) {
   console.log(`  picker jump: ${from} -> ${await page_no(deck)} (thumb ${thumb.n} of ${thumbs.length} on screen)`);
 }
 
+async function advanceSlides(deck, count) {
+  await deck.eval('__demo.show(false)');
+  await deck.move(VIEW.width - 8, Math.round(VIEW.height * .4));
+  for (let i = 0; i < count; i++) {
+    const from = await page_no(deck);
+    await deck.key('ArrowRight', KEYS.ArrowRight);
+    await deck.until(`parseInt(document.querySelector('#deck-count').textContent, 10) !== ${from}`);
+    await sleep(500);
+  }
+}
+
+async function clickControl(deck, selector) {
+  const box = await deck.box(selector);
+  await deck.eval('__demo.show(true)');
+  await deck.glide(box.x, box.y, 280);
+  await deck.eval(`__demo.pulse(${box.x}, ${box.y})`);
+  await deck.click(box.x, box.y);
+  await sleep(350);
+}
+
 if (want("pdf")) {
   beat("pdf");
   const { deck, park, entry } = await openPresenter("#slides .slide:nth-child(1)", "pdf");
@@ -271,8 +310,14 @@ if (want("pdf")) {
 
   }
 
-  // Straight to the slide carrying a link, through the picker, rather than
-  // paging there: the demo is about managing the session, not reading slides.
+  if (social) {
+    beat('pdf_cover');
+    await sleep(900);
+    beat('pdf_advance');
+    await advanceSlides(deck, 3);
+  }
+
+  // Then use the picker to reach the slide carrying an appendix link.
   await jumpVia(deck, park, t => t.find(x => x.n === LINK_PAGE) ?? t[t.length - 1]);
   while (await page_no(deck) < LINK_PAGE) {
     await deck.key("ArrowRight", KEYS.ArrowRight);
@@ -287,8 +332,8 @@ if (want("pdf")) {
     const from = await page_no(deck);
     const link = await deck.box(".annotationLayer a");
     if (social) beat('pdf_link_' + leg);
-    await deck.glide(link.x, link.y, social ? 900 : 620);
-    await sleep(social ? 350 : 240);
+    await deck.glide(link.x, link.y, social ? (leg === "back" ? 320 : 500) : 620);
+    await sleep(social ? 120 : 240);
     // Chrome fires a synthetic pointermove at the user's REAL mouse position
     // whenever the page relayouts. If their pointer happens to rest near the
     // foot of the window the app lifts the slide picker over the slide -- quite
@@ -308,7 +353,7 @@ if (want("pdf")) {
     await deck.click(link.x, link.y);
     await deck.until(`parseInt(document.querySelector('#deck-count').textContent, 10) !== ${from}`, 10000);
     console.log(`  link ${leg}: ${from} -> ${await page_no(deck)}`);
-    await sleep(1150);
+    await sleep(social ? (leg === "out" ? 300 : 450) : 1150);
     await deck.until("!!document.querySelector('.annotationLayer a')", 15000);
   }
   await deck.eval("__demo.show(false)");
@@ -321,9 +366,83 @@ if (want("pptx")) {
   const idx = await list.eval("__demo.rows().findIndex(r => r.name.endsWith('.pptx')) + 1");
   const { deck, park, entry } = await openPresenter(`#slides .slide:nth-child(${idx})`, "pptx");
   await sleep(500);
-  await deck.key("ArrowRight", KEYS.ArrowRight);
-  await sleep(1000);
-  await closePresenter(entry);
+  if (!social) {
+    await deck.key("ArrowRight", KEYS.ArrowRight);
+    await sleep(1000);
+  }
+  if (social) {
+    if (await page_no(deck) !== 1) throw new Error("Presenter view must open from the cover slide");
+    const button = await deck.box('#deck-presenter');
+    await deck.eval('__demo.show(true)');
+    await deck.glide(button.x, button.y, 750);
+    await sleep(300);
+    await deck.eval(`__demo.pulse(${button.x}, ${button.y})`);
+    beat('presenter_open');
+    await deck.click(button.x, button.y);
+    await rec.cut(async () => {
+      const output = await waitForPage('audience.html');
+      const audience = page(cdp, output.sessionId);
+      await audience.until("!document.body.classList.contains('idle') && !!document.querySelector('.audience-stage canvas, .audience-stage svg')", 40000);
+      await audience.call('Emulation.setDeviceMetricsOverride',
+        { width: VIEW.width, height: VIEW.height, deviceScaleFactor: VIEW.scale, mobile: false });
+      await rec.pair(output.targetInfo.targetId);
+      // Retain the popup id for closing after the paired recording ends.
+      entry.audience = output;
+      await deck.until("document.body.classList.contains('presenter-view')");
+      await deck.calibrate();
+    }, 0);
+    await deck.eval('__demo.show(false)');
+    await deck.move(park[0], park[1]);
+    await sleep(1100);
+    await advanceSlides(deck, 3);
+    await deck.move(park[0], park[1]);
+    beat('blank_on');
+    await deck.key('b', KEYS.b);
+    const audience = page(cdp, entry.audience.sessionId);
+    await audience.until("!document.querySelector('#deck-blank').hidden");
+    await sleep(1200);
+    beat('blank_off');
+    await deck.key('b', KEYS.b);
+    await audience.until("document.querySelector('#deck-blank').hidden");
+    await sleep(450);
+    beat('timer_reset');
+    await clickControl(deck, '#deck-restart');
+    await deck.until("document.querySelector('#deck-elapsed').textContent === '0:00'");
+    await sleep(450);
+    beat('timer_hide');
+    await clickControl(deck, '#deck-timer-close');
+    await deck.until("document.querySelector('#deck-elapsed').hidden");
+    await deck.eval('__demo.show(false)');
+    await sleep(600);
+
+    // Keep the right-hand capture attached to the SAME window while the left
+    // returns to the queue and opens a PDF. Show the real branded waiting screen.
+    beat('queue');
+    await closePresenter(entry);
+    await audience.until("document.body.classList.contains('idle')");
+    await sleep(700);
+    beat('next_pdf');
+    const next = await openPresenter('#slides .slide:nth-child(3)', 'next PDF');
+    await audience.until("!document.body.classList.contains('idle') && !!document.querySelector('.audience-stage canvas')", 40000);
+    await next.deck.until("document.body.classList.contains('presenter-view')");
+    const outputs = (await cdp.send('Target.getTargets')).targetInfos.filter(t => t.url.includes('audience.html'));
+    if (outputs.length !== 1 || outputs[0].targetId !== entry.audience.targetInfo.targetId)
+      throw new Error('The next talk did not reuse the original audience window');
+    beat('pdf_on_audience');
+    await sleep(650);
+    await advanceSlides(next.deck, 2);
+    await next.deck.move(next.park[0], next.park[1]);
+    beat('presenter_close');
+    await sleep(850);
+    await clickControl(next.deck, '#deck-presenter');
+    await sleep(250);
+    await rec.pair(null);
+    await cdp.send('Target.closeTarget', { targetId: entry.audience.targetInfo.targetId });
+    await closePresenter(next.entry);
+    console.log('  reused audience window for PowerPoint → waiting screen → PDF');
+  } else {
+    await closePresenter(entry);
+  }
 }
 
 // ------------------------------------------------------------- 6b. Get PDF
@@ -427,15 +546,25 @@ writeFileSync(DIR + "take.json", JSON.stringify({
 
 if (makeVideo) {
   rec.writeList(DIR + "frames/list.txt");
+  if (social) rec.writeList(DIR + "frames/audience-list.txt", "a");
   const r = spawnSync("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", DIR + "frames/list.txt",
     "-fps_mode", "cfr", "-r", "30",
     "-vf", "scale=1920:1080:flags=lanczos,setsar=1",
     "-c:v", "libx264", "-preset", "slow", "-crf", "19",
     "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", DIR + "demo.mp4"],
     { stdio: ["ignore", "ignore", "pipe"] });
-  console.log(r.status === 0 ? "video: " + DIR + "demo.mp4" : r.stderr.toString().slice(-1500));
+  if (r.status !== 0) throw new Error(r.stderr.toString().slice(-1500));
+  if (social) {
+    const paired = spawnSync('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', DIR + 'frames/audience-list.txt',
+      '-fps_mode', 'cfr', '-r', '30', '-vf', 'scale=1920:1080:flags=lanczos,setsar=1',
+      '-c:v', 'libx264', '-preset', 'slow', '-crf', '19', '-pix_fmt', 'yuv420p',
+      '-movflags', '+faststart', '-an', DIR + 'audience.mp4'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    if (paired.status !== 0) throw new Error(paired.stderr.toString().slice(-1500));
+  }
+  console.log('video: ' + DIR + 'demo.mp4');
 }
 
-await cdp.send("Browser.close").catch(() => {});
-cdp.close(); chrome.kill(); site.kill();
-process.exit(0);
+} finally {
+  await cdp.send("Browser.close").catch(() => {});
+  cdp.close(); chrome.kill(); site.kill();
+}

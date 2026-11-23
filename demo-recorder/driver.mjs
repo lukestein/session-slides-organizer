@@ -289,50 +289,64 @@ export const KEYS = {
 // screenshot payloads in front of every input command, which delays them
 // enough that drags land in the wrong place.
 export class Recorder {
-  constructor(wsUrl, frameDir) {
-    this.wsUrl = wsUrl; this.dir = frameDir;
+  constructor(wsUrl, frameDir, { paired = false } = {}) {
+    this.wsUrl = wsUrl; this.dir = frameDir; this.paired = paired;
     this.n = 0; this.times = []; this.running = false; this.cuts = [];
-    this.sessions = new Map(); this.scales = new Map();
+    this.sessions = new Map();
     rmSync(frameDir, { recursive: true, force: true });
     mkdirSync(frameDir, { recursive: true });
   }
   async init() { this.cdp = await CDP.connect(this.wsUrl); }
-  async focus(targetId) {
+  async attach(targetId) {
     if (!this.sessions.has(targetId)) {
       const { sessionId } = await this.cdp.send("Target.attachToTarget", { targetId, flatten: true });
-      // Deliberately no setDeviceMetricsOverride here. The driver's session already
-      // applied it to the page; a second session setting one of its own makes Chrome
-      // rescale injected input mid-gesture, so a mousedown and the mouseup that
-      // follows land on different elements and the click is lost.
-      // How a clip scale turns into output pixels depends on the page's own device
-      // pixel ratio as well as any override, and that differs between the list and
-      // the presenter. Measure a probe frame and solve for the scale that lands
-      // exactly OUTPUT_WIDTH instead of predicting it.
-      const probe = await this.cdp.send("Page.captureScreenshot", {
-        format: "jpeg", quality: 40, optimizeForSpeed: true,
-        clip: { x: 0, y: 0, width: VIEW.width, height: VIEW.height, scale: 1 },
-      }, sessionId);
-      const size = jpegSize(Buffer.from(probe.data, "base64"));
-      this.scales.set(targetId, size ? OUTPUT_WIDTH / size.width : VIEW.scale);
+      // The driver owns viewport metrics. Capture the viewport itself rather
+      // than a scaled clip: a clip taken during a resize can tile Chrome’s old
+      // compositor surface into the new dimensions.
       this.sessions.set(targetId, sessionId);
     }
-    this.session = this.sessions.get(targetId);
-    this.scale = this.scales.get(targetId);
+    return { session: this.sessions.get(targetId) };
+  }
+  async focus(targetId) {
+    this.paused = true;
+    try {
+      await this.pendingCapture;
+      Object.assign(this, await this.attach(targetId));
+    } finally { this.paused = false; }
+  }
+  async pair(targetId) {
+    this.paused = true;
+    try {
+      await this.pendingCapture;
+      this.companion = targetId ? await this.attach(targetId) : null;
+    } finally { this.paused = false; }
   }
   start() {
     this.running = true; this.t0 = Date.now();
     this.loop = (async () => {
       while (this.running) {
-        if (!this.session) { await sleep(10); continue; }
+        if (!this.session || this.paused) { await sleep(10); continue; }
         try {
-          const { data } = await this.cdp.send("Page.captureScreenshot", {
-            format: "jpeg", quality: 90, optimizeForSpeed: true,
-            clip: { x: 0, y: 0, width: VIEW.width, height: VIEW.height, scale: this.scale },
-          }, this.session);
-          writeFileSync(`${this.dir}/f${String(this.n).padStart(5, "0")}.jpg`, Buffer.from(data, "base64"));
+          // Capture both tabs in the same iteration, with one shared timestamp
+          // and edit decision list. Independent recordings drift at every cut.
+          const capture = ({ session }) => this.cdp.send("Page.captureScreenshot", {
+            format: "jpeg", quality: 90, fromSurface: true, captureBeyondViewport: false,
+          }, session);
+          this.pendingCapture = Promise.all([
+            capture(this), this.companion ? capture(this.companion) : null,
+          ]);
+          const [main, other] = await this.pendingCapture;
+          for (const frame of [main, other].filter(Boolean)) {
+            const size = jpegSize(Buffer.from(frame.data, 'base64'));
+            if (size && (size.width * 9 !== size.height * 16))
+              throw new Error(`Unexpected capture aspect ratio: ${size.width}×${size.height}`);
+          }
+          const name = String(this.n).padStart(5, "0");
+          writeFileSync(`${this.dir}/f${name}.jpg`, Buffer.from(main.data, "base64"));
+          if (this.paired) writeFileSync(`${this.dir}/a${name}.jpg`, Buffer.from(other?.data ?? main.data, "base64"));
           this.times.push(Date.now() - this.t0);
           this.n++;
-        } catch { await sleep(30); }
+        } catch (error) { this.error = error; this.running = false; }
       }
     })();
   }
@@ -350,10 +364,11 @@ export class Recorder {
     }
   }
   async stop() { this.running = false; await this.loop; this.cdp.close();
+    if (this.error) throw this.error;
     return { frames: this.n, ms: Date.now() - this.t0 }; }
   // Frames inside a cut are dropped, and the time after it moves up by the
   // cut's length, so each surviving frame keeps its real duration.
-  writeList(path) {
+  writeList(path, prefix = "f") {
     const inCut = t => this.cuts.some(([a, b]) => t > a && t < b);
     const shift = t => this.cuts.reduce((sum, [a, b]) => sum + (t >= b ? b - a : 0), 0);
     const kept = [];
@@ -363,10 +378,10 @@ export class Recorder {
     const lines = [];
     kept.forEach(({ i, t }, k) => {
       const next = k + 1 < kept.length ? kept[k + 1].t : t + 40;
-      lines.push(`file 'f${String(i).padStart(5, "0")}.jpg'`,
+      lines.push(`file '${prefix}${String(i).padStart(5, "0")}.jpg'`,
         `duration ${(Math.max(next - t, 1) / 1000).toFixed(4)}`);
     });
-    lines.push(`file 'f${String(kept.at(-1).i).padStart(5, "0")}.jpg'`);
+    lines.push(`file '${prefix}${String(kept.at(-1).i).padStart(5, "0")}.jpg'`);
     writeFileSync(path, lines.join("\n") + "\n");
     return { frames: kept.length, cutMs: this.cuts.reduce((sum, [a, b]) => sum + b - a, 0) };
   }
