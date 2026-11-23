@@ -4,7 +4,7 @@
 // and a clicker pointed at this window moves the presenter view along with it.
 // See audience-channel.mjs for the messages.
 import { holdUntilClosed, newId, openChannel, whenClosed } from "./audience-channel.mjs";
-import { extensionOf, makeMove, moveFor, openDeck } from "./deck-open.mjs";
+import { extensionOf, makeMove, moveFor, moveForClick, openDeck } from "./deck-open.mjs";
 
 const blank = document.querySelector("#deck-blank");
 const setup = document.querySelector("#audience-setup");
@@ -148,17 +148,19 @@ function idle() {
   announce();
 }
 
-// The setup card shows only while waiting and not yet full screen: once a talk
-// is up, a small button in the corner is all that is left, and only while the
-// pointer moves.
+// Instructions and branding stay visible while waiting, even in full screen.
+// Once a talk is up, only the small full-screen button remains.
 function layout() {
   const full = Boolean(document.fullscreenElement);
-  setup.hidden = full || !document.body.classList.contains("idle");
+  setup.hidden = !document.body.classList.contains("idle");
   corner.hidden = full || document.body.classList.contains("idle");
-  otherDisplay.hidden = !(screen.isExtended && "getScreenDetails" in window);
+  otherDisplay.hidden = full || !(screen.isExtended && "getScreenDetails" in window);
+  document.querySelector("#audience-fullscreen").textContent = full ? "Exit full screen" : "Full screen";
 }
 
+let hintTimer;
 async function goFullScreen(onOtherDisplay) {
+  clearTimeout(hintTimer);
   hint.textContent = "";
   if (document.fullscreenElement) {
     await document.exitFullscreen().catch(() => {});
@@ -186,6 +188,9 @@ async function goFullScreen(onOtherDisplay) {
   hint.textContent = onOtherDisplay
     ? "Click again, or drag this window to the other display and use Full screen."
     : `Use ${shortcut} to make this window full screen.`;
+  // This hint lives outside the waiting-screen card so it is visible during
+  // a talk too. Remove it soon so it does not stay over the projected slide.
+  hintTimer = setTimeout(() => { hint.textContent = ""; }, 6000);
 }
 
 document.querySelector("#audience-fullscreen").addEventListener("click", () => goFullScreen(false));
@@ -201,6 +206,7 @@ function stir() {
   still = setTimeout(() => document.body.classList.add("still"), 2500);
 }
 document.addEventListener("pointermove", stir);
+document.addEventListener("pointerdown", stir);
 stir();
 
 function resume() {
@@ -229,15 +235,15 @@ document.addEventListener("keydown", event => {
   }
 });
 
-// Clicking the outer eighth of either side moves a slide, as in the presenter.
-const edgeShare = 0.12;
+// Click to advance, except for links, media and the leftmost eighth (back).
 document.addEventListener("click", event => {
   if (!deck) return;
-  if (event.target.closest("a, button, .audience-setup")) return;
-  if (resume()) return;
-  const edge = window.innerWidth * edgeShare;
-  if (event.clientX <= edge) deck.prev();
-  else if (event.clientX >= window.innerWidth - edge) deck.next();
+  if (event.target.closest(".deck-blank")) {
+    resume();
+    return;
+  }
+  const move = moveForClick(event, stage);
+  if (move) makeMove(deck, move);
 });
 
 let resizing;

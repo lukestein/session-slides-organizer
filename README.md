@@ -59,7 +59,7 @@ Press **?** at any time for the shortcut guide.
 | **?** or **/** | Show the keyboard guide |
 | **Esc** | Close the guide or the slide picker |
 
-Presentation clickers work too, since both the arrow keys and the Page keys move. You can also click the outer eighth of either side of a slide to move on. Links inside a PDF still work, including jumps to another page, and a link at the very edge of a page takes its own click. The **All slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own full screen. In full screen the bar hides until the pointer reaches the top.
+Presentation clickers work too, since both the arrow keys and the Page keys move. Click the current slide to advance to its next build or slide; click its leftmost eighth to go back. This works in single-screen mode, presenter view and the audience window. Links keep their own clicks, including internal jumps and links at the very edge of a slide. The **All slides** and **Full screen** buttons in the top bar do the same as **G** and the browser's own full screen. In full screen the bar hides until the pointer reaches the top.
 
 Coming back from a blank screen returns to the slide that was up, so a key pressed to wake the screen does not cost a slide.
 
@@ -70,7 +70,7 @@ The presentation is read into memory before it is shown, so closing the organize
 Most rooms mirror the laptop or podium screen onto the projector, and nothing above changes for them. Where the projector is a separate display, the speaker can see their next slide, notes and a timer while the room sees only the slide.
 
 - **For one talk**, click **Presenter view** in the presenter bar. A second window opens: drag it to the projector and click **Full screen** there. In Chrome and Edge, **Full screen on the other display** does the moving for you, after asking once for permission. The presenter tab now shows the current slide, the next one, the speaker notes from a PowerPoint file, the time elapsed (**×** hides it) and the time of day, with every slide along the bottom.
-- **For a whole session**, click **Open audience screen** under the list before the first talk, and move that window to the projector and make it full screen. From then on, every talk opened with **Open in browser** starts in presenter view on the laptop and appears on the projector, replacing the talk before it. Closing a talk's tab sends the projector back to a quiet waiting screen. Opening an earlier talk's tab again offers **Show this talk** to put it back up.
+- **For a whole session**, click **Open audience screen** under the list before the first talk, and move that window to the projector and make it full screen. From then on, every talk opened with **Open in browser** starts in presenter view on the laptop and appears on the projector, replacing the talk before it. Closing a talk's tab sends the projector back to a branded waiting screen with instructions. Opening an earlier talk's tab again offers **Show this talk** to put it back up.
 
 Both windows work: the keys, a clicker, a click on a thumbnail, and a link inside a slide move the talk in either one, and the other follows. **B** and **W** blank the projector, while the presenter view keeps the slide in view, dimmed, so the speaker knows where they are. **Leave presenter view** returns the tab to a single screen and frees the projector. The windows talk to each other inside this browser only: nothing is sent anywhere.
 

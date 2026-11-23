@@ -16,6 +16,49 @@ Open <http://127.0.0.1:8000/>. PDF.js 6.5.438 and fflate 0.8.3 are bundled under
 
 Run the tests with `node --test tests/*.test.mjs`. After adding, removing or renaming anything in `docs/`, run `node scripts/offline-files.mjs`; a test fails until you do.
 
+### Presenter browser regression tests
+
+`tests/browser/presenter.mjs` runs the organizer, presenter and audience screen in an isolated
+browser profile against the working tree. It starts its own HTTP server and stops it for the
+offline checks; no other local server or real presentation files are needed. The generated
+fixtures include a 60-slide 4:3 PowerPoint with three click-by-click builds per slide, long speaker
+notes and internal slide links, plus a three-page 4:3 PDF. Playwright is a development tool only;
+it adds nothing to the deployed site.
+
+With Google Chrome installed, one way to run it without adding dependencies to this repository:
+
+```sh
+npm install --prefix /tmp/slideorg-browser-tests playwright
+PLAYWRIGHT_MODULE=/tmp/slideorg-browser-tests/node_modules/playwright/index.mjs node tests/browser/presenter.mjs
+```
+
+For the other engines, install Playwright's browser builds, then select one:
+
+```sh
+/tmp/slideorg-browser-tests/node_modules/.bin/playwright install firefox webkit
+BROWSER=firefox PLAYWRIGHT_MODULE=/tmp/slideorg-browser-tests/node_modules/playwright/index.mjs node tests/browser/presenter.mjs
+BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/slideorg-browser-tests/node_modules/playwright/index.mjs node tests/browser/presenter.mjs
+```
+
+Set `TEST_ARTIFACTS=/tmp/slideorg-shots` to save screenshots of presenter view and the fullscreen
+fallback message for visual inspection.
+
+The test checks existing-talk instructions and persistent waiting-screen instructions and branding in fullscreen, rendered build visibility as well as synchronization messages, audience-side keys,
+center and left-edge slide clicks in all views, PDF and PowerPoint links that keep their own clicks,
+blank/resume, audience reload, talk takeover, closing the active presenter, reclaiming an older
+talk, long notes, the thumbnail strip, internal PowerPoint links, PDF fitting after fullscreen exit
+and resizing, fullscreen refusal feedback, closing the organizer and audience, single-screen
+controls, and offline audience opening/reloading. CSP stays enforced. The offline check stops the
+server instead of using Playwright's offline emulation: WebKit 18.2's emulation stranded a new
+popup at `about:blank`, whereas a real connection failure passed.
+If a headless popup refuses fullscreen, the test checks its fallback instructions and runs the
+fullscreen guidance checks in a separate browser window instead; it logs that substitution.
+
+These checks do not replace Safari itself or a real two-display machine. Test display permission
+prompts (including leaving the prompt open), fullscreen placement on the projector, and a physical
+clicker after giving the audience window focus on the room computer. The generated deck tests
+entrance builds; complicated animations and rendering fidelity still need representative decks.
+
 The service worker (see **Working offline**) is network first, so it does not hold back local edits, but the browser's HTTP cache may: reload with the cache bypassed (Shift-reload), or tick DevTools → Network → **Disable cache**. DevTools → Application → Service workers has **Unregister** if you want the worker gone.
 
 ## Project layout
@@ -123,8 +166,10 @@ The keys are in the table under **Presenter keyboard shortcuts** in the README. 
 a page at a time; for a deck they play the next click-by-click build before moving on, as
 PowerPoint does.
 
-Clicking the outer eighth of either side moves a slide as well, except where a link sits there:
-a link takes its own click, so one at the very edge of a page is still reachable. Coming back
+Clicking the current slide advances a build or slide; its leftmost eighth goes back. Both windows
+use `moveForClick()` in `deck-open.mjs`, measured from the rendered page so letterboxing does not
+displace the backward zone. Links and media controls take their own clicks, including PowerPoint's
+SVG slide links. The next-slide preview and other page controls do not advance. Coming back
 from a blank screen returns to the slide that was up rather than moving on from it, so a key
 pressed to wake the screen does not cost a slide. Resting the pointer at the foot of the
 slide also lifts the picker into view, and it withdraws when the pointer leaves; opening it with

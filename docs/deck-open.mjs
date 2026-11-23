@@ -56,3 +56,15 @@ export function makeMove(deck, move) {
   else if (move === "first") deck.goTo(0);
   else if (move === "last") deck.goTo(deck.count - 1);
 }
+
+// A click on the current slide advances; its leftmost eighth goes back.
+// Measure the rendered page, rather than its stage, so letterboxing doesn't
+// move the backward zone away from the slide's left edge. Links and media
+// keep their own clicks, including PowerPoint's SVG links and audio controls.
+export function moveForClick(event, stage) {
+  if (event.defaultPrevented || event.button !== 0 || !stage.contains(event.target)) return null;
+  if (event.target.closest("a, button, input, select, textarea, audio, video, [role='button'], [role='link'], [data-slide], [data-media-toggle]")) return null;
+  const page = stage.querySelector(".pdf-page, svg") ?? stage;
+  const bounds = page.getBoundingClientRect();
+  return event.clientX <= bounds.left + bounds.width / 8 ? "prev" : "next";
+}

@@ -15,28 +15,31 @@
   <div class="audience-page">
     <div class="deck-stage audience-stage" id="deck-stage"></div>
 
-    <div class="audience-idle" id="audience-idle" aria-hidden="true">
-      <svg viewBox="0 0 32 32" width="64" height="64">
-        <rect width="32" height="32" rx="7" fill="#006644"/>
-        <rect x="11" y="5.5" width="16" height="11.5" rx="2" fill="#5fa47f"/>
-        <rect x="8.5" y="9.25" width="16" height="11.5" rx="2" fill="#a9d3b9"/>
-        <rect x="6" y="13" width="16" height="11.5" rx="2" fill="#fff"/>
-      </svg>
+    <div class="audience-idle" id="audience-idle">
+      <div class="audience-brand" role="img" aria-label="slideorg.org">
+        <svg viewBox="0 0 32 32" width="56" height="56" aria-hidden="true">
+          <rect width="32" height="32" rx="7" fill="#006644"/>
+          <rect x="11" y="5.5" width="16" height="11.5" rx="2" fill="#5fa47f"/>
+          <rect x="8.5" y="9.25" width="16" height="11.5" rx="2" fill="#a9d3b9"/>
+          <rect x="6" y="13" width="16" height="11.5" rx="2" fill="#fff"/>
+        </svg>
+        <span class="site-address" aria-hidden="true">slide<b>org</b><i>.org</i></span>
+      </div>
+
+      <section class="audience-setup" id="audience-setup" aria-labelledby="audience-heading">
+        <h1 id="audience-heading">Audience screen</h1>
+        <p class="audience-placement">Move this window to your projector, then make it full screen.</p>
+        <p>Choose a deck from the organizer, or click <strong>Presenter view</strong> or
+          <strong>Show this talk</strong> in an open presentation.</p>
+        <p class="audience-actions">
+          <button type="button" class="deck-button" id="audience-other" hidden>Full screen on the other display</button>
+          <button type="button" class="deck-button" id="audience-fullscreen">Full screen</button>
+        </p>
+      </section>
     </div>
 
-    <section class="audience-setup" id="audience-setup" aria-labelledby="audience-heading">
-      <h1 id="audience-heading"><span class="site-address">slide<b>org</b><i>.org</i></span> audience screen</h1>
-      <p>Move this window to the projector or second display, then make it full screen.</p>
-      <p>Talks opened from the organizer now start in presenter view, on the other screen, and show
-        here.</p>
-      <p class="audience-actions">
-        <button type="button" class="deck-button" id="audience-other" hidden>Full screen on the other display</button>
-        <button type="button" class="deck-button" id="audience-fullscreen">Full screen</button>
-      </p>
-      <p class="audience-hint" id="audience-hint" role="status"></p>
-    </section>
-
     <button type="button" class="deck-button audience-corner" id="audience-corner" hidden>Full screen</button>
+    <p class="audience-hint" id="audience-hint" role="status"></p>
     <div class="deck-blank" id="deck-blank" hidden></div>
   </div>
 </body>

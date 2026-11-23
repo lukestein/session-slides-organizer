@@ -10,7 +10,7 @@
 // foot, while an audience screen (audience.mjs) in another window shows the
 // slide to the room. Without one, nothing changes.
 import { holdUntilClosed, newId, openAudienceWindow, openChannel, trackAudiences } from "./audience-channel.mjs";
-import { extensionOf, makeMove, mimeTypes, moveFor, openDeck } from "./deck-open.mjs";
+import { extensionOf, makeMove, mimeTypes, moveFor, moveForClick, openDeck } from "./deck-open.mjs";
 
 const stage = document.querySelector("#deck-stage");
 const counter = document.querySelector("#deck-count");
@@ -203,31 +203,18 @@ function step(move) {
 document.querySelector("#deck-prev").addEventListener("click", step(() => deck?.prev()));
 document.querySelector("#deck-next").addEventListener("click", step(() => deck?.next()));
 
-// Clicking near the left or right edge moves a slide. The strips that mark
-// those zones are not hit-testable, so a link sitting at the edge of a page
-// still takes its own click; what is left over is placed by where it landed.
-// In presenter view the edges are the current slide's, not the window's.
-const edgeShare = 0.12;
+// Click the current slide to advance, or its leftmost eighth to go back.
+// Shared with the audience window so links, media and letterboxing behave
+// the same in both. The next-slide preview and page controls keep their clicks.
 document.addEventListener("click", event => {
   if (!deck) return;
-  // Links, controls and the page furniture keep their own clicks.
-  if (event.target.closest("a, button, input, .deck-bar, .deck-picker, .deck-help, .deck-side")) {
-    return;
-  }
-  if (presenterView && !event.target.closest(".deck-stage, .deck-blank")) return;
-  if (presenterView && blanked()) {
+  if (event.target.closest(".deck-blank")) {
     resume();
     return;
   }
-  if (!presenterView && event.target.closest(".deck-blank")) return;
-  const area = presenterView
-    ? stage.getBoundingClientRect()
-    : { left: 0, right: window.innerWidth };
-  const edge = (area.right - area.left) * edgeShare;
-  if (event.clientX <= area.left + edge) step(() => deck.prev())();
-  else if (event.clientX >= area.right - edge) step(() => deck.next())();
+  const move = moveForClick(event, stage);
+  if (move) step(() => makeMove(deck, move))();
 });
-blank.addEventListener("click", () => { if (!presenterView) resume(); });
 help.addEventListener("click", () => showHelp(false));
 
 document.querySelector("#deck-slides").addEventListener("click", () => {

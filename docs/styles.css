@@ -1075,18 +1075,39 @@ main kbd {
 .audience-idle {
   grid-area: 1 / 1;
   display: none;
-  place-items: center;
-  opacity: .35;
+  z-index: 3;
+  min-height: 0;
+  padding: 1.5rem;
+  overflow: auto;
+  /* Keep the brand centered and the instructions at the foot. On a short
+     window the last track grows to fit the card, avoiding any overlap. */
+  grid-template-rows: minmax(0, 1fr) auto minmax(min-content, 1fr);
+  justify-items: center;
+  gap: 1.5rem;
 }
 .idle .audience-idle { display: grid; }
+.audience-brand {
+  grid-row: 2;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: .8rem;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  color: #b4b4bd;
+  opacity: .75;
+}
+.audience-brand b { color: #a9d3b9; }
+.audience-brand i { color: #5fa47f; font-style: normal; }
 .audience-idle svg { display: block; }
 
 .audience-setup {
-  position: absolute;
-  inset: auto 1.5rem 1.5rem;
-  z-index: 3;
+  grid-row: 3;
+  align-self: end;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
   max-width: 34rem;
-  margin: 0 auto;
+  margin: 0;
   padding: 1.1rem 1.3rem;
   font-size: .95rem;
   color: #dcdce2;
@@ -1095,13 +1116,27 @@ main kbd {
   border-radius: .6rem;
 }
 .audience-setup[hidden] { display: none; }
+:fullscreen .audience-placement { display: none; }
 .audience-setup h1 { margin: 0 0 .6rem; font-size: 1.05rem; }
-.audience-setup h1 .site-address b { color: #a9d3b9; }
-.audience-setup h1 .site-address i { color: #5fa47f; font-style: normal; }
 .audience-setup p { margin: .4rem 0; }
 .audience-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem !important; }
 .audience-actions [hidden] { display: none; }
-.audience-hint { min-height: 1.2em; color: #a9d3b9; font-size: .85rem; }
+.audience-hint {
+  position: absolute;
+  right: .75rem;
+  bottom: 3.5rem;
+  z-index: 4;
+  max-width: min(30rem, calc(100% - 1.5rem));
+  margin: 0;
+  padding: .6rem .8rem;
+  color: #a9d3b9;
+  background: #1b1b21;
+  border: 1px solid #3c3c46;
+  border-radius: .4rem;
+  font-size: .85rem;
+}
+.audience-hint:empty { display: none; }
+.idle .audience-hint { top: .75rem; bottom: auto; }
 
 .audience-corner {
   position: absolute;
@@ -1114,3 +1149,4 @@ main kbd {
 .audience-corner[hidden] { display: none; }
 .still .audience-corner { opacity: 0; pointer-events: none; }
 .still { cursor: none; }
+.idle.still { cursor: auto; }
