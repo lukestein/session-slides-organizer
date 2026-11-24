@@ -502,6 +502,16 @@ URLs as an API. If they stop working, link rows still open, and the error offers
 download. Drive's `/thumbnail` endpoint was tried for previews and rejected: its redirect sends no
 CORS headers.
 
+[ModernSlides](https://github.com/kevincure/ModernSlides) links are recognised by the address
+its README documents, `…/ModernSlides/?deck=Name` (or `index.html?deck=`, or the older `?xml=`),
+and the row is named `Name` until someone types a title. A deck given as a path, such as
+`?xml=Class2/Class2Slides.txt`, is named by the whole path less its extension. Nothing is fetched: the deck is `Name/Name.json` beside the
+page, but the hosts tried send no CORS headers, and rendering it faithfully would need
+ModernSlides' own page, its themes and the fonts and MathJax it loads from CDNs. Relying on the
+address alone keeps the row working however that page changes. If a host sends
+`Access-Control-Allow-Origin` on the JSON, `meta.title`, the slides not marked `hidden` and the
+first slide's title would give a title, count and simple preview card.
+
 The preview is `/export/png`, about 25 KB, fetched as soon as a Google link is added; its
 `Content-Disposition` carries the deck's name, which becomes the row's fallback title the way a
 filename does for a dropped file, so a title someone typed or brought in a session is never

@@ -531,7 +531,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "", i
   const getPdf = row.querySelector(".get-pdf");
   const thumbnail = row.querySelector(".thumbnail");
   let url = "";
-  let fromFilename = link?.service ?? "";
+  let fromFilename = link?.name || link?.service || "";
   if (file) {
     const source = extension === "pdf" && file.type !== "application/pdf"
       ? file.slice(0, file.size, "application/pdf")
@@ -705,9 +705,10 @@ async function insertEntries(entries, { rejected = [], problems = [], note = "",
     const link = address ? parseLink(address) : null;
     if (address && !link) badLinks.push(address);
     if (!file && !link) continue;
-    // An untitled link goes into session.md under its service's name, which
-    // is a placeholder rather than a name anyone chose.
-    const chosenTitle = !file && title === link.service ? "" : title;
+    // An untitled link goes into session.md under its service's name, or the
+    // deck name in its address, which is a placeholder rather than a name
+    // anyone chose.
+    const chosenTitle = !file && (title === link.service || title === link.name) ? "" : title;
     const extension = file ? extensionOf(file.name) : "";
     if (file && (!supported(extension) || file.size === 0)) {
       rejected.push(file.name);

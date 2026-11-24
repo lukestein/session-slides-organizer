@@ -108,6 +108,8 @@ Both ask Google anonymously, without your Google sign-in, which is why a private
 
 **Refresh** appears beside the source link on any row fetched from a link, Google Slides included. It downloads the current version, in case the speaker has changed it, and keeps the row's position and any title you typed. It says when nothing has changed, and when the page count has. It only runs when you click it, so a presentation never changes under you mid-session.
 
+**ModernSlides** links, such as `https://kevinbryanecon.com/ModernSlides/?deck=Progress2025Class1`, take the deck's name from the address as their title, and open in ModernSlides itself, where **f** goes full screen and **s** opens its speaker view.
+
 Other services keep their presentations behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
 
 If you import a session ZIP with a saved copy for a link-only row, the row keeps its position and any title you entered. **Open in browser** presents the saved PDF, and **Google Slides ↗** opens the current online presentation. If the row already has a PDF, it keeps that copy.
