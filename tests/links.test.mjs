@@ -28,6 +28,29 @@ function onePagePdf() {
   return `${pdf}trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
 }
 
+test("a ModernSlides deck is named from its address", () => {
+  const link = parseLink("https://kevinbryanecon.com/ModernSlides/?deck=Progress2025Class1");
+  assert.equal(link.service, "ModernSlides");
+  assert.equal(link.name, "Progress2025Class1");
+  assert.equal(link.direct, false);
+  // The same deck through index.html, or with a fragment, is the same talk.
+  assert.equal(parseLink("https://kevinbryanecon.com/ModernSlides/index.html?deck=Progress2025Class1").key, link.key);
+  assert.equal(parseLink("https://kevinbryanecon.com/ModernSlides/?deck=Progress2025Class1#slide-2").key, link.key);
+  assert.equal(parseLink("https://kevinbryanecon.com/modernslides/?deck=Progress2025Class1").service, "ModernSlides");
+  assert.notEqual(parseLink("https://kevinbryanecon.com/ModernSlides/?deck=Other").key, link.key);
+  assert.equal(parseLink("https://kevinbryanecon.com/ModernSlides/?xml=Progress2025Class2/Class2Slides.txt").name, "Progress2025Class2/Class2Slides");
+  assert.equal(parseLink("https://example.edu/ModernSlides/?deck=./Talk/Talk.json").name, "Talk/Talk");
+  assert.equal(parseLink("https://example.edu/ModernSlides/?deck=https://example.org/decks/Talk.json").name, "Talk");
+});
+
+test("only a deck on a ModernSlides page counts as one", () => {
+  // The page with no deck shows its demo; a deck parameter elsewhere means nothing.
+  assert.equal(parseLink("https://kevinbryanecon.com/ModernSlides/").service, "kevinbryanecon.com");
+  assert.equal(parseLink("https://kevinbryanecon.com/ModernSlides/").name, "");
+  assert.equal(parseLink("https://example.com/slides/?deck=Talk").service, "example.com");
+  assert.equal(parseLink("https://docs.google.com/presentation/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit").name, "");
+});
+
 test("only addresses on ordinary hosts are fetched directly", () => {
   assert.equal(parseLink("https://donbowen.github.io/PublicFiles/rd174_syracuse.pdf").direct, true);
   assert.equal(parseLink("https://docs.google.com/presentation/d/abcdefghijklmnopqrstuvwxyz/edit").direct, false);

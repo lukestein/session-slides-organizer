@@ -32,9 +32,30 @@ const services = [
 // ordinary link; the short "e" never matches the length required here.
 const googleDeck = /^\/presentation(?:\/u\/\d+)?\/d\/([A-Za-z0-9_-]{20,})(?:[/?#]|$)/;
 
+// Kevin Bryan's ModernSlides (github.com/kevincure/ModernSlides) is a single
+// page that its users host in a ModernSlides folder on their own sites. A deck
+// opens as …/ModernSlides/?deck=Name, which loads Name/Name.json from beside
+// the page. Only that documented address is relied on: the page and the deck
+// format are his and change, and his site does not let other pages read the
+// deck, so the row is named from the address and opens there like any link.
+const modernSlidesPage = /\/ModernSlides\/(?:index\.html?)?$/i;
+
+function modernSlidesDeck(url) {
+  if (!modernSlidesPage.test(url.pathname)) return null;
+  const deck = (url.searchParams.get("deck") || url.searchParams.get("xml") || "").trim();
+  // The parameter may also be a path beside the page, such as
+  // Class2/Class2Slides.txt, which reads best whole: the name is the path
+  // without its extension. A full address keeps only its last part.
+  const path = /^[a-z][a-z0-9+.-]*:/i.test(deck) ? deck.split("/").pop() : deck.replace(/^(\.?\/)+/, "");
+  const name = path.replace(/\.(json|txt)$/i, "");
+  if (!name) return null;
+  const folder = url.pathname.replace(/index\.html?$/i, "");
+  return { name, key: `modernslides:${url.origin}${folder}?deck=${deck}` };
+}
+
 /**
  * Reads pasted or dropped text as a link to online slides.
- * Returns { url, key, googleId, service, display } or null when the text is
+ * Returns { url, key, googleId, service, display, direct, name } or null when the text is
  * not a single http(s) address. The scheme is required, so a pasted filename
  * such as `talk.pdf` is never mistaken for a website.
  */
@@ -53,24 +74,29 @@ export function parseLink(text) {
   const googleId = /(^|\.)docs\.google\.com$/.test(url.hostname)
     ? googleDeck.exec(url.pathname)?.[1] ?? null
     : null;
+  const modernSlides = googleId ? null : modernSlidesDeck(url);
   const service = googleId
     ? "Google Slides"
-    : services.find(([pattern]) => pattern.test(url.hostname))?.[1] ?? host;
+    : modernSlides ? "ModernSlides" : services.find(([pattern]) => pattern.test(url.hostname))?.[1] ?? host;
 
   // Two links to the same deck should count as one talk. For Google that is
   // the deck ID, whatever view or account the address happens to open; for
-  // anything else, the address without its fragment or a trailing slash.
+  // ModernSlides, the page's folder and the deck, with or without index.html;
+  // for anything else, the address without its fragment or a trailing slash.
   // The address as the URL parser writes it, so what is opened, and what
   // goes in session.md between angle brackets, is always properly escaped.
   const href = url.href;
   url.hash = "";
   const plain = url.href.replace(/\/$/, "");
-  const key = googleId ? `google-slides:${googleId}` : plain;
+  const key = googleId ? `google-slides:${googleId}` : modernSlides?.key ?? plain;
   const display = `${host}${url.pathname === "/" ? "" : url.pathname}`;
   // A host none of the services above, so the address may lead straight to
   // a file worth fetching.
   const direct = !googleId && service === host;
-  return { url: href, key, googleId, service, display, direct };
+  // The deck's own name, where the address carries one, stands in for a title
+  // until someone types one, as a filename does for a dropped file.
+  const name = modernSlides?.name ?? "";
+  return { url: href, key, googleId, service, display, direct, name };
 }
 
 const deckExtensions = /\.(pdf|pptx?|pptm|ppsx?|ppsm|key)$/i;
