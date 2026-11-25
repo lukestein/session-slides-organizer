@@ -1200,3 +1200,77 @@ main kbd {
 .still .audience-corner { opacity: 0; pointer-events: none; }
 .still { cursor: none; }
 .idle.still { cursor: auto; }
+
+/* A YouTube video as a talk (deck-video.mjs). */
+.video-talk .deck-edge,
+.video-talk .deck-picker { display: none; }
+
+.video-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.video-stage iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+}
+
+/* On the audience screen the player takes no clicks, so keys and a clicker
+   stay with the page rather than disappearing into YouTube's frame. */
+.video-remote-controlled iframe { pointer-events: none; }
+
+.video-cover {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: inherit;
+  font: inherit;
+}
+
+button.video-cover { cursor: pointer; }
+.video-cover[hidden] { display: none; }
+.video-cover > img { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: contain; }
+.video-play-mark { grid-area: 1 / 1; width: 5rem; height: auto; filter: drop-shadow(0 2px 8px rgb(0 0 0 / .5)); }
+button.video-cover:hover .video-play-mark,
+button.video-cover:focus-visible .video-play-mark { transform: scale(1.08); }
+
+.video-problem {
+  position: absolute;
+  inset: auto 1rem 1rem;
+  margin: 0 auto;
+  border-radius: .5rem;
+  background: rgb(0 0 0 / .8);
+}
+
+/* Presenter view: the cover, with the controls beneath it. */
+.video-remote {
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: stretch;
+}
+.video-remote .video-cover { position: static; min-height: 0; background: transparent; }
+.video-remote .video-cover > img { opacity: .9; }
+.video-remote .video-cover.dim > img { opacity: .5; }
+
+.video-panel {
+  display: grid;
+  gap: .5rem;
+  padding: .9rem 0 .25rem;
+  color: #e6e6eb;
+}
+
+.video-panel p { margin: 0; }
+.video-heading { font-weight: 600; }
+.video-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+.video-toggle { min-width: 6.5rem; font-weight: 600; }
+.video-progress { width: 100%; accent-color: #5fa47f; }
+.video-time { font-variant-numeric: tabular-nums; color: #b4b4bd; }
+.video-note { color: #f0c36b; min-height: 1.2em; }

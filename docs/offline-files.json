@@ -6,6 +6,7 @@
  "deck-open.mjs",
  "deck-pdf.mjs",
  "deck-pptx.mjs",
+ "deck-video.mjs",
  "deck-viewer.mjs",
  "favicon-32.png",
  "favicon.svg",

@@ -16,6 +16,12 @@
 //                        screen whose own keys or links moved it, on behalf
 //                        of `owner`. `seq` puts moves in order.
 //   release              A presenter tab giving the screen back.
+//   video                Presenter view steering a YouTube video on the
+//                        audience screen: `command` (play, pause or seek) and
+//                        `time`. A `present` for a video carries `video`
+//                        ({ id, start, playing }) and `cover` in place of a file.
+//   video-status         The audience screen saying how that video is getting
+//                        on, on behalf of `owner`: state, time, duration, error.
 export const channelName = "slideorg-audience";
 
 export function openChannel(onMessage) {

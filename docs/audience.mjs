@@ -5,6 +5,7 @@
 // See audience-channel.mjs for the messages.
 import { holdUntilClosed, newId, openChannel, whenClosed } from "./audience-channel.mjs";
 import { extensionOf, makeMove, moveFor, moveForClick, openDeck } from "./deck-open.mjs";
+import { openVideoPlayer, videoKey } from "./deck-video.mjs";
 
 const blank = document.querySelector("#deck-blank");
 const setup = document.querySelector("#audience-setup");
@@ -43,6 +44,8 @@ function receive(message) {
     load(message);
   } else if (message.type === "release" && message.from === owner) {
     idle();
+  } else if (message.type === "video" && message.from === owner && deck?.video) {
+    deck.command(message);
   } else if (message.type === "state" && owner) {
     // From the presenter view, or from a second audience screen showing the
     // same talk and moved by its own keys.
@@ -58,6 +61,8 @@ function receive(message) {
 function setBlank(colour) {
   blank.dataset.colour = colour || "";
   blank.hidden = !colour;
+  // Local keys and incoming messages must both silence a hidden video.
+  if (colour && deck?.video) deck.pause();
 }
 
 function apply(position) {
@@ -119,6 +124,10 @@ async function load(handover) {
   setBlank(handover.blank);
   document.body.classList.remove("idle");
   layout();
+  if (handover.video) {
+    showVideo(handover, target);
+    return;
+  }
   try {
     const data = await handover.file.arrayBuffer();
     if (ticket !== loading) return;
@@ -133,6 +142,27 @@ async function load(handover) {
   } catch {
     if (ticket === loading) message("This presentation couldn’t be shown here.");
   }
+}
+
+// A YouTube video plays here, with sound, steered from presenter view. It has
+// no controls of its own, so clicks and keys stay with this page, where a
+// clicker pointed at this window can reach them.
+let coverUrl = "";
+function showVideo(handover, target) {
+  if (coverUrl) URL.revokeObjectURL(coverUrl);
+  coverUrl = handover.cover instanceof Blob ? URL.createObjectURL(handover.cover) : "";
+  const talkOwner = owner;
+  deck = openVideoPlayer(target, {
+    id: handover.video.id,
+    start: handover.video.start,
+    autoplay: handover.video.playing,
+    cover: coverUrl,
+    onStatus(status) {
+      if (owner === talkOwner) post({ type: "video-status", owner: talkOwner, ...status });
+    },
+  });
+  apply(pending);
+  pending = null;
 }
 
 function idle() {
@@ -219,6 +249,7 @@ function resume() {
 document.addEventListener("keydown", event => {
   const move = moveFor(event);
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (deck?.video && !blank.dataset.colour && videoKey(event, deck)) return;
   if (move) {
     event.preventDefault();
     // Coming back from a blank screen returns to the slide that was up.
@@ -240,6 +271,10 @@ document.addEventListener("click", event => {
   if (!deck) return;
   if (event.target.closest(".deck-blank")) {
     resume();
+    return;
+  }
+  if (deck.video) {
+    if (!event.target.closest("button, a")) deck.toggle();
     return;
   }
   const move = moveForClick(event, stage);

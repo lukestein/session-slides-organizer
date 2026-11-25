@@ -2,11 +2,11 @@ import { makePreview } from "./previews.mjs";
 import { buildSessionZip, sessionZipSize } from "./session-zip.mjs";
 import { readLooseSession, readSessionZip } from "./session-import.mjs";
 import { isManifestName, parseManifest } from "./session-manifest.mjs";
-import { canPresent, needsCaveat, presentUrl } from "./deck-viewer.mjs";
+import { canPresent, needsCaveat, presentUrl, videoUrl } from "./deck-viewer.mjs";
 import { openAudienceWindow, openChannel, trackAudiences } from "./audience-channel.mjs";
 import { findDuplicate, fingerprint } from "./file-identity.mjs";
 import { clearSession, loadSession, saveSession } from "./session-store.mjs";
-import { fetchGooglePdf, fetchGooglePreview, fetchLinkedFile, fetchSourceFile, googlePdfUrl, looksLikeDeckFile, NotADeckError, parseLink } from "./links.mjs";
+import { fetchGooglePdf, fetchGooglePreview, fetchLinkedFile, fetchSourceFile, fetchYouTubeInfo, googlePdfUrl, looksLikeDeckFile, NotADeckError, parseLink } from "./links.mjs";
 
 const formats = {
   pdf: "PDF",
@@ -35,6 +35,7 @@ const zipDetails = document.querySelector("#zip-details");
 const zipName = document.querySelector("#zip-name");
 const deckCaveat = document.querySelector("#deck-caveat");
 const linkCaveat = document.querySelector("#link-caveat");
+const videoCaveat = document.querySelector("#video-caveat");
 const googleCaveat = document.querySelector("#google-caveat");
 const linkField = document.querySelector("#link");
 const addLinkButton = document.querySelector("#add-link");
@@ -82,6 +83,11 @@ function downloadName(slide, index, width = 1) {
 }
 
 function updateDownload(slide, index) {
+  // A video goes to the presenter too, with its title and cover.
+  if (!slide.file && slide.link?.youtube) {
+    slide.open.href = videoUrl(slide.link.youtube, slide.friendlyName, slide.previewUrl);
+    return;
+  }
   if (!slide.file) return;
   const name = downloadName(slide, index);
   slide.download.download = name;
@@ -133,7 +139,8 @@ function updateList() {
   list.hidden = slides.length === 0;
   masthead.classList.toggle("hero", slides.length === 0);
   deckCaveat.hidden = !slides.some(slide => needsCaveat(slide.extension));
-  linkCaveat.hidden = !slides.some(slide => !slide.file);
+  linkCaveat.hidden = !slides.some(slide => !slide.file && !slide.link.youtube);
+  videoCaveat.hidden = !slides.some(slide => !slide.file && slide.link.youtube);
   googleCaveat.hidden = !slides.some(slide => slide.file && slide.link?.googleId);
   updateArchive();
   clearButton.hidden = slides.length === 0;
@@ -172,7 +179,9 @@ function announceMove(slide) {
 
 function setMetadata(slide, count, unit) {
   if (!slide.file) {
-    slide.metadata.textContent = `(${slide.link.service})`;
+    slide.metadata.textContent = slide.link.author
+      ? `(${slide.link.service} · ${slide.link.author})`
+      : `(${slide.link.service})`;
     return;
   }
   // Kept so a refresh can say whether the deck grew or shrank.
@@ -258,6 +267,10 @@ function makeLinkControls(slide, { thumbnail, openPdf, download, getPdf }) {
     getPdf.addEventListener("click", () => fetchLinkedDeck(slide, { asked: true }));
     return;
   }
+  if (link.youtube) {
+    makeVideoControls(slide, { thumbnail, openPdf });
+    return;
+  }
   if (!link.googleId) return;
 
   // The preview and the deck's name come in one small request, made as soon
@@ -279,6 +292,60 @@ function makeLinkControls(slide, { thumbnail, openPdf, download, getPdf }) {
   getPdf.hidden = false;
   getPdf.setAttribute("aria-label", `Get a PDF of ${link.display} from Google`);
   getPdf.addEventListener("click", () => importGooglePdf(slide, getPdf));
+}
+
+// A YouTube video plays in the presenter, or on the audience screen, so its
+// row opens there rather than on YouTube; the original is one click away
+// beside the address. Its title and cover are asked for as soon as it is added.
+function makeVideoControls(slide, { thumbnail, openPdf }) {
+  const { link } = slide;
+  openPdf.textContent = "Play video";
+  openPdf.rel = "noopener";
+  openPdf.title = "Plays in its own tab, or on the audience screen in presenter view";
+  openPdf.setAttribute("aria-label", `Play video: ${link.display}`);
+  const source = slide.row.querySelector(".source-link");
+  source.href = link.url;
+  source.textContent = "YouTube ↗";
+  source.setAttribute("aria-label", "Open the video on YouTube");
+  source.hidden = false;
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "preview-button";
+  retry.title = "Couldn’t reach YouTube for the title and cover. Click to try again.";
+  retry.setAttribute("aria-label", `Try again to load the title and cover of ${link.display} from YouTube`);
+  retry.append(Object.assign(document.createElement("span"), { textContent: "Retry" }));
+  retry.hidden = true;
+  thumbnail.prepend(retry);
+  retry.addEventListener("click", async () => {
+    if (!await loadVideoInfo(slide, retry)) {
+      showProblem(`YouTube didn’t describe ${slide.named ? `“${slide.friendlyName}”` : "this video"}. `
+        + "It may be private or removed, or not allowed on other sites, or this computer may be offline.");
+    }
+  });
+  loadVideoInfo(slide, retry);
+}
+
+async function loadVideoInfo(slide, retry) {
+  retry.disabled = true;
+  try {
+    const { image, name, author } = await fetchYouTubeInfo(slide.link.youtube.id);
+    if (!slide.row.isConnected) return true;
+    if (image) showPreview(slide, image);
+    slide.link.author = author;
+    setMetadata(slide);
+    if (name) adoptDeckName(slide, name);
+    updateDownload(slide, slides.indexOf(slide));
+    retry.remove();
+    if (image) slide.row.querySelector(".link-thumbnail svg")?.remove();
+    return true;
+  } catch {
+    if (!slide.row.isConnected) return true;
+    retry.disabled = false;
+    retry.hidden = false;
+    retry.parentElement.removeAttribute("aria-hidden");
+    retry.prepend(slide.row.querySelector(".link-thumbnail svg"));
+    return false;
+  }
 }
 
 async function loadGooglePreview(slide, retry) {
@@ -544,7 +611,7 @@ function makeRow({ file = null, extension = "", link = null, presetTitle = "", i
   const metadata = row.querySelector(".metadata");
   // `named` records that this talk has a name someone chose — typed here, or
   // carried in a session manifest — as opposed to the stem of its filename.
-  const slide = { id, row, file, link, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: Boolean(file) && canPresent(extension) };
+  const slide = { id, row, file, link, title, url, position, download, open: openPdf, extension, defaultTitle, metadata, friendlyName: defaultTitle, named: Boolean(presetTitle?.trim()), presentable: file ? canPresent(extension) : Boolean(link?.youtube) };
 
   title.defaultValue = defaultTitle;
   title.placeholder = defaultTitle;

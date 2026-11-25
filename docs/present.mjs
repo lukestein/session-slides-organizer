@@ -11,6 +11,7 @@
 // slide to the room. Without one, nothing changes.
 import { holdUntilClosed, newId, openAudienceWindow, openChannel, trackAudiences } from "./audience-channel.mjs";
 import { extensionOf, makeMove, mimeTypes, moveFor, moveForClick, openDeck } from "./deck-open.mjs";
+import { openVideoPlayer, openVideoRemote, videoKey } from "./deck-video.mjs";
 
 const stage = document.querySelector("#deck-stage");
 const counter = document.querySelector("#deck-count");
@@ -32,6 +33,7 @@ const elapsed = document.querySelector("#deck-elapsed");
 const clock = document.querySelector("#deck-time");
 const screenStatus = document.querySelector("#deck-screen-status");
 const screenAction = document.querySelector("#deck-screen-action");
+const upNextSection = document.querySelector(".deck-upnext");
 let deck;
 // The picker stays put when it was asked for, and withdraws when it was only
 // uncovered by the pointer resting at the foot of the slide.
@@ -40,7 +42,9 @@ let pickerPinned = false;
 // Presenter view, and the audience screen it drives.
 const id = newId("presenter");
 let presenterView = false;
-let talk = null;  // { file, name, title }: what an audience screen is handed.
+// { file, name, title }, or { video, title, cover } for a YouTube video: what
+// an audience screen is handed.
+let talk = null;
 let seq = 0;
 let applying = false;
 let lastSent = "";
@@ -65,6 +69,10 @@ function message(text) {
 
 function updateCount() {
   if (!deck) return;
+  if (deck.video) {
+    counter.textContent = "";
+    return;
+  }
   counter.textContent = `${deck.index + 1} / ${deck.count}`;
   // picker.children is an HTMLCollection, which has no entries().
   Array.from(picker.children).forEach((thumb, index) => {
@@ -92,6 +100,8 @@ function setBlank(colour) {
   const next = blank.dataset.colour === colour ? "" : colour;
   blank.dataset.colour = next;
   blank.hidden = !next;
+  // A video playing under a blank screen would carry on being heard.
+  if (next && deck?.video && !deck.remote) deck.pause();
   changed();
 }
 
@@ -212,6 +222,8 @@ document.addEventListener("click", event => {
     resume();
     return;
   }
+  // A video has its own controls; a stray click should not start or stop it.
+  if (deck.video) return;
   const move = moveForClick(event, stage);
   if (move) step(() => makeMove(deck, move))();
 });
@@ -230,7 +242,7 @@ document.querySelector("#deck-slides").addEventListener("click", () => {
 // leaves a band where neither happens, which settles it.
 const liftWithin = 40;
 document.addEventListener("pointermove", event => {
-  if (event.pointerType === "touch" || pickerPinned || presenterView) return;
+  if (event.pointerType === "touch" || pickerPinned || presenterView || deck?.video) return;
   const fromFoot = window.innerHeight - event.clientY;
   if (!pickerOpen()) {
     if (deck && fromFoot <= liftWithin && !blanked() && help.hidden) showPicker(true);
@@ -269,6 +281,10 @@ document.addEventListener("keydown", event => {
   const move = moveFor(event);
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  // A video takes play, pause and skipping; blanking and the guide work as
+  // for slides, and any key that moves brings a blanked screen back.
+  if (deck?.video && help.hidden && !blanked() && videoKey(event, deck)) return;
+  if (deck?.video && key === "g") return;
 
   if (move) {
     event.preventDefault();
@@ -341,7 +357,11 @@ function sendTalk() {
   seq += 1;
   const now = position();
   lastSent = JSON.stringify(now);
-  channel.postMessage({ type: "present", from: id, seq, ...talk, ...now });
+  // A video picks up where it is, playing or not.
+  const video = deck.video
+    ? { ...talk.video, start: deck.status().time, playing: deck.status().state === "playing" }
+    : undefined;
+  channel.postMessage({ type: "present", from: id, seq, ...talk, ...now, ...(video && { video }) });
 }
 
 function sendState() {
@@ -356,6 +376,11 @@ function sendState() {
 
 function receive(message) {
   if (audiences.handle(message)) return;
+  // How the video on the audience screen is getting on.
+  if (message.type === "video-status" && message.owner === id && deck?.remote) {
+    deck.update(message);
+    return;
+  }
   // A move made on the audience screen, by its own keys or a link on the slide.
   if (message.type === "state" && message.owner === id && message.from.startsWith("audience:")) {
     if (!deck || !(message.seq > seq)) return;
@@ -427,6 +452,12 @@ screenAction.addEventListener("click", () => {
 const previews = new Map();
 function updateSide() {
   if (!deck) return;
+  upNextSection.hidden = Boolean(deck.video);
+  if (deck.video) {
+    notesSection.hidden = true;
+    side.classList.remove("has-notes");
+    return;
+  }
   const remaining = (deck.steps ?? 0) - (deck.step ?? 0);
   builds.hidden = remaining <= 0;
   builds.textContent = remaining === 1 ? "1 more click on this slide"
@@ -501,11 +532,15 @@ function setPresenterView(on) {
     ? "Back to one screen: the slides fill this tab, and the audience screen waits"
     : "Notes, the next slide and a timer here, with the slides on a second screen";
   document.querySelector("#deck-slides").hidden = on;
+  if (deck?.video) {
+    if (on) steerVideo();
+    else playVideoHere(deck.status().time, false);
+  }
   if (on) {
     startedAt = Date.now();
     tick();
     ticking = setInterval(tick, 1000);
-    showPicker(true);
+    if (!deck?.video) showPicker(true);
     updateSide();
     updateScreenStatus();
   } else {
@@ -555,6 +590,69 @@ function audienceAnswer(within) {
   });
 }
 
+// ---- A YouTube video -------------------------------------------------------
+
+// On its own, the video plays in this tab with YouTube's controls.
+function playVideoHere(start, autoplay) {
+  deck?.destroy?.();
+  deck = openVideoPlayer(stage, { ...talk.video, start, autoplay, controls: true, cover: talk.coverUrl });
+}
+
+// In presenter view it plays on the audience screen, and this tab holds the
+// controls. Whatever was playing here carries on there.
+function steerVideo() {
+  const was = deck?.status?.() ?? { time: talk.video.start, state: "unstarted" };
+  deck?.destroy?.();
+  deck = openVideoRemote(stage, {
+    start: was.time,
+    cover: talk.coverUrl,
+    title: talk.title,
+    send(command) {
+      if (!onScreen()) {
+        deck.say("This video isn’t on the audience screen. Use Show this talk first.");
+        return;
+      }
+      channel.postMessage({ type: "video", from: id, ...command });
+    },
+  });
+  if (was.state === "playing") deck.update({ state: "playing" });
+}
+
+async function startVideo(parameters, title) {
+  const video = parameters.get("video") ?? "";
+  if (!/^[A-Za-z0-9_-]{11}$/.test(video)) {
+    message("Open this video from the organizer tab.");
+    return;
+  }
+  document.body.classList.add("video-talk");
+  document.querySelector("#deck-slides").hidden = true;
+  document.title = title ? `Playing ${title}` : "Playing a video";
+  original.href = `https://www.youtube.com/watch?v=${video}`;
+  original.textContent = "Open on YouTube";
+  original.title = "Watch this video on YouTube itself";
+  original.rel = "noopener noreferrer";
+  original.hidden = false;
+  // The cover comes from the organizer tab, which may let it go, so keep a copy.
+  let cover = null;
+  const coverSource = parameters.get("cover") ?? "";
+  if (coverSource.startsWith("blob:")) {
+    try {
+      cover = await (await fetch(coverSource)).blob();
+    } catch {
+      cover = null;
+    }
+  }
+  const start = Math.max(0, Number(parameters.get("start")) || 0);
+  talk = { video: { id: video, start }, title, cover, coverUrl: cover ? URL.createObjectURL(cover) : "" };
+  playVideoHere(start, false);
+  updateCount();
+  await audienceAnswer(400);
+  if (audiences.open) {
+    setPresenterView(true);
+    sendTalk();
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 async function start() {
@@ -573,6 +671,11 @@ async function start() {
     sourceName.textContent = sourceFile;
     sourceName.title = sourceFile;
     sourceName.hidden = false;
+  }
+
+  if (parameters.has("video")) {
+    await startVideo(parameters, title);
+    return;
   }
 
   if (!source?.startsWith("blob:")) {

@@ -17,6 +17,7 @@ import { loadPdf } from "./pdf-document.mjs";
 // is still accepted, and goes by its host name.
 const services = [
   [/(^|\.)docs\.google\.com$/, "Google Slides"],
+  [/(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/, "YouTube"],
   [/(^|\.)canva\.com$/, "Canva"],
   [/(^|\.)pitch\.com$/, "Pitch"],
   [/(^|\.)figma\.com$/, "Figma"],
@@ -53,9 +54,35 @@ function modernSlidesDeck(url) {
   return { name, key: `modernslides:${url.origin}${folder}?deck=${deck}` };
 }
 
+// A YouTube video, from any of the addresses YouTube hands out: watch?v=,
+// youtu.be/, /shorts/, /embed/, /live/ and /v/, on www., m., music. or the
+// no-cookie host. A start time (t=90, t=1m30s, start=90) is kept, so a speaker
+// can cue a clip partway in. Returns { id, start } or null.
+const youtubeHost = /^(?:(?:www|m|music)\.)?youtube\.com$|^(?:www\.)?youtube-nocookie\.com$|^(?:www\.)?youtu\.be$/i;
+const youtubeId = /^[A-Za-z0-9_-]{11}$/;
+
+export function youtubeVideo(url) {
+  if (!youtubeHost.test(url.hostname)) return null;
+  const parts = url.pathname.split("/").filter(Boolean);
+  let id = "";
+  if (/youtu\.be$/i.test(url.hostname)) id = parts[0] ?? "";
+  else if (parts[0] === "watch") id = url.searchParams.get("v") ?? "";
+  else if (["shorts", "embed", "live", "v", "e"].includes(parts[0])) id = parts[1] ?? "";
+  if (!youtubeId.test(id)) return null;
+  return { id, start: youtubeStart(url.searchParams.get("t") ?? url.searchParams.get("start") ?? "") };
+}
+
+// Seconds, from 90, 90s, 1m30s or 1h2m3s; 0 when absent or unreadable.
+function youtubeStart(value) {
+  if (/^\d+$/.test(value)) return Number(value);
+  const parts = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(value);
+  if (!value || !parts) return 0;
+  return Number(parts[1] ?? 0) * 3600 + Number(parts[2] ?? 0) * 60 + Number(parts[3] ?? 0);
+}
+
 /**
  * Reads pasted or dropped text as a link to online slides.
- * Returns { url, key, googleId, service, display, direct, name } or null when the text is
+ * Returns { url, key, googleId, youtube, service, display, direct, name } or null when the text is
  * not a single http(s) address. The scheme is required, so a pasted filename
  * such as `talk.pdf` is never mistaken for a website.
  */
@@ -74,29 +101,34 @@ export function parseLink(text) {
   const googleId = /(^|\.)docs\.google\.com$/.test(url.hostname)
     ? googleDeck.exec(url.pathname)?.[1] ?? null
     : null;
-  const modernSlides = googleId ? null : modernSlidesDeck(url);
+  const youtube = googleId ? null : youtubeVideo(url);
+  const modernSlides = googleId || youtube ? null : modernSlidesDeck(url);
   const service = googleId
     ? "Google Slides"
+    : youtube ? "YouTube"
     : modernSlides ? "ModernSlides" : services.find(([pattern]) => pattern.test(url.hostname))?.[1] ?? host;
 
   // Two links to the same deck should count as one talk. For Google that is
   // the deck ID, whatever view or account the address happens to open; for
   // ModernSlides, the page's folder and the deck, with or without index.html;
+  // for YouTube, the video and where it starts, whichever address was pasted;
   // for anything else, the address without its fragment or a trailing slash.
   // The address as the URL parser writes it, so what is opened, and what
   // goes in session.md between angle brackets, is always properly escaped.
   const href = url.href;
   url.hash = "";
   const plain = url.href.replace(/\/$/, "");
-  const key = googleId ? `google-slides:${googleId}` : modernSlides?.key ?? plain;
+  const key = googleId ? `google-slides:${googleId}`
+    : youtube ? `youtube:${youtube.id}${youtube.start ? `@${youtube.start}` : ""}`
+    : modernSlides?.key ?? plain;
   const display = `${host}${url.pathname === "/" ? "" : url.pathname}`;
   // A host none of the services above, so the address may lead straight to
   // a file worth fetching.
-  const direct = !googleId && service === host;
+  const direct = !googleId && !youtube && service === host;
   // The deck's own name, where the address carries one, stands in for a title
   // until someone types one, as a filename does for a dropped file.
   const name = modernSlides?.name ?? "";
-  return { url: href, key, googleId, service, display, direct, name };
+  return { url: href, key, googleId, youtube, service, display, direct, name };
 }
 
 const deckExtensions = /\.(pdf|pptx?|pptm|ppsx?|ppsm|key)$/i;
@@ -239,6 +271,45 @@ export async function fetchGooglePreview(id) {
   const image = await response.blob();
   if (!image.type.startsWith("image/") || !image.size) throw new Error("Google did not send an image.");
   return { image, name: deckNameFrom(response.headers.get("Content-Disposition")) };
+}
+
+/**
+ * A YouTube video's title, channel and cover image, from YouTube's oEmbed
+ * answer and its thumbnail server, both of which let other pages read them.
+ * Asked without cookies or a referrer, like Google above. Returns
+ * { image, name, author }, with image null when no thumbnail came. Throws
+ * when YouTube will not describe the video: private, removed, or not allowed
+ * on other sites.
+ */
+export async function fetchYouTubeInfo(id) {
+  const watch = `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+  const response = await anonymousFetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(watch)}`);
+  if (!response.ok) throw new Error(`YouTube answered ${response.status}.`);
+  const info = await response.json();
+  // The 16:9 still where there is one; the 4:3 one, letterboxed, always exists.
+  let image = null;
+  for (const still of ["maxresdefault", "hqdefault"]) {
+    try {
+      const picture = await anonymousFetch(`https://i.ytimg.com/vi/${encodeURIComponent(id)}/${still}.jpg`);
+      if (!picture.ok) continue;
+      const blob = await picture.blob();
+      if (blob.type.startsWith("image/") && blob.size) {
+        image = blob;
+        break;
+      }
+    } catch {
+      // Try the next size, or go without.
+    }
+  }
+  return { image, name: String(info.title ?? "").trim(), author: String(info.author_name ?? "").trim() };
+}
+
+function anonymousFetch(address) {
+  return fetch(address, {
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    signal: AbortSignal.timeout(30_000),
+  });
 }
 
 // The filename a download would be saved under: Content-Disposition when the

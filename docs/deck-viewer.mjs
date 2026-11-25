@@ -19,3 +19,12 @@ export function presentUrl(fileUrl, title, filename, source) {
   const parameters = new URLSearchParams({ src: fileUrl, title, name: filename, file: source });
   return `./present.html?${parameters}`;
 }
+
+// A YouTube video goes to the same presenter, which plays it there or on the
+// audience screen. `cover` is a blob URL of its still, when there is one.
+export function videoUrl({ id, start }, title, cover = "") {
+  const parameters = new URLSearchParams({ video: id, title });
+  if (start) parameters.set("start", String(start));
+  if (cover) parameters.set("cover", cover);
+  return `./present.html?${parameters}`;
+}
