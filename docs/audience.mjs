@@ -61,6 +61,8 @@ function receive(message) {
 function setBlank(colour) {
   blank.dataset.colour = colour || "";
   blank.hidden = !colour;
+  // Local keys and incoming messages must both silence a hidden video.
+  if (colour && deck?.video) deck.pause();
 }
 
 function apply(position) {
@@ -69,7 +71,6 @@ function apply(position) {
   try {
     deck.show(position.index, position.step);
     setBlank(position.blank);
-    if (position.blank && deck.video) deck.pause();
   } finally {
     applying = false;
   }

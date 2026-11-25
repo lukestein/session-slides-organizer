@@ -155,7 +155,7 @@ export function openVideoPlayer(stage, { id, start = 0, autoplay = false, contro
     if (data?.event === "onReady") {
       ready = true;
       if (seekTo !== null) send("seekTo", [seekTo, true]);
-      if (wanted === "play") send("playVideo");
+      if (wanted === "play") controller.play();
       return;
     }
     if (data?.event === "onError") {

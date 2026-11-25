@@ -59,6 +59,11 @@ prompts (including leaving the prompt open), fullscreen placement on the project
 clicker after giving the audience window focus on the room computer. The generated deck tests
 entrance builds; complicated animations and rendering fidelity still need representative decks.
 
+`tests/browser/video.mjs` uses a simulated YouTube iframe to check blocked autoplay during
+handoff and that B/W pause a video from either window. Run it with the same
+`PLAYWRIGHT_MODULE` setting as above. It needs no internet or real video, and does not check
+YouTube's actual player protocol or streaming.
+
 The service worker (see **Working offline**) is network first, so it does not hold back local edits, but the browser's HTTP cache may: reload with the cache bypassed (Shift-reload), or tick DevTools → Network → **Disable cache**. DevTools → Application → Service workers has **Unregister** if you want the worker gone.
 
 ## Project layout
