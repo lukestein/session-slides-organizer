@@ -10,6 +10,7 @@ A small web tool for whoever runs a conference session, a seminar, or a panel. W
 - **Present from the browser.** PDFs and PowerPoint files open in their own tab, one slide at a time, ready to send to the projector.
 - **A ZIP of the whole session.** Numbered, named in order, with a `session.md` running order beside the presentation files. Drop that ZIP back in later to pick up exactly where you left off.
 - **Online presentations too.** Paste a link to Google Slides, Canva, PowerPoint for the web or anywhere else, and it takes its place in the running order.
+- **YouTube videos as talks.** Paste a YouTube link and it arrives with its title and cover, and plays full screen, on the projector in presenter view.
 - **Private by design.** The organizer has no server side. Nothing is uploaded, there is nothing to sign in to, and there is no tracking or analytics.
 - **Nothing lost to a refresh.** The list is kept in this browser until you clear it, so a closed tab or a restarted computer picks up where it was.
 
@@ -108,6 +109,21 @@ Both ask Google anonymously, without your Google sign-in, which is why a private
 
 **Refresh** appears beside the source link on any row fetched from a link, Google Slides included. It downloads the current version, in case the speaker has changed it, and keeps the row's position and any title you typed. It says when nothing has changed, and when the page count has. It only runs when you click it, so a presentation never changes under you mid-session.
 
+**YouTube** links, in any of the forms YouTube hands out (`youtube.com/watch?v=…`, `youtu.be/…`, Shorts, live and embed links), bring the video's title, channel and cover image as soon as they are added. A start time in the link (`t=90` or `t=1m30s`) is kept, so a clip can be cued partway in. **Play video** opens it in the presenter:
+
+- **On one screen** it plays in YouTube's own player, with YouTube's controls, and **Full screen** fills the screen.
+- **In presenter view** it plays on the audience screen, with sound, and the presenter tab shows the cover with **Play**, **−10 s**, **+10 s**, **Start** and a slider, with the time. A video that was playing when presenter view started carries on from the same point on the projector. **B** and **W** blank the projector and pause the video. The audience screen takes no clicks inside the player, so a clicker pointed at it keeps working.
+
+| Key, for a video | Does |
+| --- | --- |
+| Space **K** Page Down ↓ Enter | Play or pause |
+| ← / → | Back / forward 5 seconds |
+| **J** / **L** | Back / forward 10 seconds |
+| Page Up ↑ | Back 10 seconds, for a clicker's back button |
+| Home **0** | Back to the start |
+
+Videos stream from YouTube, so they need the internet when they play, and the player may show YouTube's title and suggestions when paused. Some owners don't allow their videos to be played on other sites. The presenter says so, and **YouTube ↗** beside the row's title opens the video on YouTube itself. A browser may hold back sound in a window nobody has clicked yet. Clicking **Full screen** on the audience screen counts. If it hasn't been clicked, the presenter says so. In the session ZIP, a video is a link in `session.md`, like any other online talk.
+
 **ModernSlides** links, such as `https://kevinbryanecon.com/ModernSlides/?deck=Progress2025Class1`, take the deck's name from the address as their title, and open in ModernSlides itself, where **f** goes full screen and **s** opens its speaker view.
 
 Other services keep their presentations behind their own sign-in and offer no comparable export, so their rows are links only. In the session ZIP, a link is a line in `session.md` rather than a file, and comes back when the ZIP is dropped in again.
@@ -116,7 +132,7 @@ If you import a session ZIP with a saved copy for a link-only row, the row keeps
 
 ## Good to know
 
-**Your list stays on this computer.** There is no account and nothing is saved on a server. Apart from PairDrop, the page contacts only the sites you link to: Google for the preview and name of a Google Slides link when you add one and for its PDF when you click **Get PDF**, and any other link's own site once, when you add it, to see whether it is a slide file. **Refresh** asks again only when clicked. None of these requests carries your cookies or the page's address. The list, files included, is kept in this browser's own storage on this computer, so a refresh, a crash or a closed tab does not lose it. Open the page again and it comes back. **Clear list**, under the session ZIP row, removes it. On a shared room computer, clear the list when your session is done, and download the session ZIP if you want to keep the running order elsewhere. If the page is open in two tabs, only the first keeps the list saved, and the second says so.
+**Your list stays on this computer.** There is no account and nothing is saved on a server. Apart from PairDrop, the page contacts only the sites you link to: Google for the preview and name of a Google Slides link when you add one and for its PDF when you click **Get PDF**, YouTube for a video's title and cover when you add it and for the video when you play it, and any other link's own site once, when you add it, to see whether it is a slide file. **Refresh** asks again only when clicked. None of these requests carries your cookies or the page's address, except the video player itself: it comes from YouTube's no-cookie address, `youtube-nocookie.com`, and YouTube requires it to know this site's address, though not the page's. The list, files included, is kept in this browser's own storage on this computer, so a refresh, a crash or a closed tab does not lose it. Open the page again and it comes back. **Clear list**, under the session ZIP row, removes it. On a shared room computer, clear the list when your session is done, and download the session ZIP if you want to keep the running order elsewhere. If the page is open in two tabs, only the first keeps the list saved, and the second says so.
 
 **It works offline.** After the page has been opened once with internet, this browser keeps a copy of it, so it opens again with no connection: handy when the room's Wi-Fi is down or wants a sign-in. Your saved list comes back too, and PDFs and PowerPoint files present as usual. Only online presentations and fetching from links need the internet. When setting up a room computer, open the page once while it is online. Online, updates arrive just as they would without it.
 

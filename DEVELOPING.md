@@ -72,10 +72,11 @@ The service worker (see **Working offline**) is network first, so it does not ho
 | `docs/present.html`, `docs/present.mjs` | The presenter shell: bar, keys, blanking, slide picker, full screen, and presenter view |
 | `docs/audience.html`, `docs/audience.mjs`, `docs/audience-channel.mjs` | The audience screen for presenter view, and the messages the windows pass each other |
 | `docs/deck-open.mjs`, `docs/deck-pdf.mjs`, `docs/deck-pptx.mjs` | Opening a file with the right engine, and one rendering engine per format, behind the presenter and the audience screen |
+| `docs/deck-video.mjs` | A YouTube video as a talk: the embedded player, and presenter view's remote controls for it |
 | `docs/session-zip.mjs`, `docs/session-manifest.mjs`, `docs/session-import.mjs`, `docs/file-identity.mjs` | Writing a session ZIP and its `session.md`, and reading one back without listing a talk twice |
 | `docs/session-store.mjs` | Keeping the list, files included, in the browser's IndexedDB so it survives a refresh or a closed tab |
 | `docs/sw.js`, `docs/offline-files.json` | The service worker that keeps a copy of the site for offline use, and the list of files it keeps |
-| `docs/links.mjs` | Reading a pasted link, fetching a PDF or preview from Google Slides, and fetching a file a link points straight at |
+| `docs/links.mjs` | Reading a pasted link, fetching a PDF or preview from Google Slides, a YouTube video's title and cover, and a file a link points straight at |
 | `docs/vendor/` | Bundled third-party code and font: PDF.js, fflate, web-ppt, Instrument Sans, with licenses |
 | `docs/favicon.svg`, `docs/favicon-32.png`, `docs/apple-touch-icon.png`, `docs/social-card.png` | The mark, and the image chat apps show when the link is shared |
 | `scripts/brand-images.mjs` | Renders the PNG icons and the social card |
@@ -276,6 +277,9 @@ PowerPoint exactly", because the differences are easier to show than to enumerat
 The presenter is staying. These are the costs it carries, and what to watch.
 
 - `docs/vendor/webppt/` adds about 1.1 MB to the repository, loaded only when a deck is opened.
+- A `frame-src https://www.youtube-nocookie.com` in `present.html` and `audience.html`, for
+  YouTube videos (see **YouTube videos** below). The player runs in its own cross-origin frame;
+  `script-src 'self'` is untouched and none of YouTube's scripts run in our pages.
 - Two CSP exceptions in `docs/index.html`. `style-src-attr 'unsafe-inline'`, because the renderer
   positions every shape with an inline `style` attribute; this is the narrowest form that works,
   so injected `<style>` blocks and external stylesheets stay blocked. And `data:` in `img-src`,
@@ -517,6 +521,58 @@ The preview is `/export/png`, about 25 KB, fetched as soon as a Google link is a
 filename does for a dropped file, so a title someone typed or brought in a session is never
 replaced. No cheap export gives a slide count: `/export/txt` runs every slide's text together
 with nothing marking where one slide ends.
+
+## YouTube videos
+
+`parseLink()` recognises every address form YouTube hands out (see `youtubeVideo()` in
+`docs/links.mjs`) and reduces each to the 11-character video ID and a start time, so the key
+`youtube:ID` (or `youtube:ID@seconds` for a cued clip) settles duplicates whatever form was
+pasted. When the row is added, `fetchYouTubeInfo()` asks YouTube's oEmbed endpoint for the title
+and channel, and `i.ytimg.com` for the 16:9 `maxresdefault.jpg`, falling back to the 4:3
+`hqdefault.jpg`. Both send CORS headers, so this is the same anonymous `fetch` as Google's
+preview: no cookies, no referrer, and `connect-src https:` already allows it. The oEmbed answer
+fails for a private or removed video, and the row keeps its web icon and offers Retry.
+
+**Play video** opens `present.html?video=ID&start=…&title=…&cover=blob:…`, with the cover as a
+blob URL from the organizer, which the presenter copies at once. No file is involved, so the
+presenter branches early (`startVideo()`) and `deck` becomes a controller from
+`docs/deck-video.mjs` that answers to the deck engines' `index`, `count`, `step` and `steps`
+as a one-slide talk. That keeps presenter view's machinery — claiming the audience screen,
+takeover, blanking, `seq`, closing — working unchanged.
+
+- **Steering YouTube's player without its script.** The player is an
+  `<iframe src="https://www.youtube-nocookie.com/embed/ID?enablejsapi=1&origin=…">`. The page
+  posts `{"event":"listening"}` to it once it loads, and from then on it reports `infoDelivery`
+  messages (state, current time, duration), `onReady` and `onError`. Commands go the same way:
+  `{"event":"command","func":"playVideo"}`, `pauseVideo`, `seekTo`. This is the protocol
+  YouTube's own `iframe_api` script speaks, so loading that script (and a `script-src`
+  exception) is unnecessary. Messages are checked against the frame's window and origin.
+- **The referrer.** YouTube refuses to play an embed that does not say which site it is on
+  (error 153), so the iframe sets `referrerpolicy="strict-origin-when-cross-origin"`: the
+  origin, never the page's address or its query string.
+- **One player, on the audience screen.** In presenter view only the audience screen plays the
+  video, so there is one source of sound. The presenter tab swaps its player for
+  `openVideoRemote()`: the cover, buttons, a slider and the time. Commands travel as `video`
+  messages; the audience screen answers with `video-status`, throttled to changes of state and
+  quarter seconds. Entering presenter view hands over the current time and whether it was
+  playing; leaving it brings the video back to the tab, paused, at the time the audience
+  screen last reported.
+- **Keys and clicks.** On the audience screen the player has `controls=0`, `disablekb=1` and
+  `pointer-events: none`, so focus never moves into YouTube's frame, where the page could no
+  longer hear a clicker. In the presenter tab on its own it keeps YouTube's controls, so clicking
+  into it hands the keys to YouTube until the page is clicked again; YouTube's own keys for
+  Space, K, J, L, ← and → do the same as ours, which keeps that from mattering much. `videoKey()` holds
+  the shared mapping.
+- **Covers.** Our own copy of the still covers the player before it starts and after it ends, in
+  place of YouTube's title card and its grid of suggestions. While paused, YouTube draws its own
+  overlay, which cannot be turned off.
+- **Autoplay.** A browser holds back sound in a window with no user activation. The audience
+  screen has usually been clicked (Full screen), but if `playVideo` has not made it play within
+  four seconds it reports `blocked`, and the presenter asks for a click there.
+- **What could not be tested here.** Neither the embedded development browser nor
+  Playwright-driven Chrome would stream YouTube video: the player sits buffering, even after a
+  real click on YouTube's own play button. Commands, seeking, status, errors and the two-window
+  handover were checked against the real player; actual playback with sound needs a person.
 
 ## Demo video and screenshots
 
